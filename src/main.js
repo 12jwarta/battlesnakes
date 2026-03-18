@@ -314,11 +314,11 @@ function statusMessage(currentState) {
   }
 
   if (currentState.status === "player_won") {
-    return `You reached ${WIN_SCORE} food first.`;
+    return `You won! Press Start / Restart or R to play again.`;
   }
 
   if (currentState.status === "enemy_won") {
-    return "Enemy snake wins this round.";
+    return "Enemy snake wins this round. Press Start / Restart or R to play again.";
   }
 
   if (currentState.status === "draw") {

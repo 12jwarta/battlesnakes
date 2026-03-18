@@ -25,6 +25,46 @@ const MIME_TYPES = {
 };
 
 const rooms = new Map();
+const rateBuckets = new Map();
+
+function getClientIp(request) {
+  const forwarded = request.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.length > 0) {
+    return forwarded.split(",")[0].trim();
+  }
+  return request.socket.remoteAddress || "unknown";
+}
+
+function isRateLimited(request, actionKey, limit, windowMs) {
+  const ip = getClientIp(request);
+  const key = `${actionKey}:${ip}`;
+  const now = Date.now();
+  const bucket = rateBuckets.get(key);
+
+  if (!bucket || now - bucket.windowStart >= windowMs) {
+    rateBuckets.set(key, { windowStart: now, count: 1, windowMs });
+    return false;
+  }
+
+  bucket.count += 1;
+  bucket.windowMs = windowMs;
+  if (bucket.count > limit) {
+    return true;
+  }
+
+  rateBuckets.set(key, bucket);
+  return false;
+}
+
+function maybeCleanupRateBuckets() {
+  const currentTime = Date.now();
+  for (const [key, bucket] of rateBuckets.entries()) {
+    const windowMs = typeof bucket.windowMs === "number" ? bucket.windowMs : 60_000;
+    if (currentTime - bucket.windowStart >= windowMs) {
+      rateBuckets.delete(key);
+    }
+  }
+}
 
 function now() {
   return Date.now();
@@ -220,6 +260,7 @@ function maybeCleanupRooms() {
 }
 
 setInterval(maybeCleanupRooms, 60_000).unref();
+setInterval(maybeCleanupRateBuckets, 60_000).unref();
 
 createServer(async (request, response) => {
   try {
@@ -227,6 +268,10 @@ createServer(async (request, response) => {
     const pathname = requestUrl.pathname;
 
     if (request.method === "POST" && pathname === "/api/rooms") {
+      if (isRateLimited(request, "create_room", 5, 60_000)) {
+        sendJson(response, 429, { error: "Too many room creation attempts. Please try again later." });
+        return;
+      }
       const body = await parseJsonBody(request);
       const room = createRoom(body.settings);
       sendJson(response, 201, {
@@ -253,6 +298,11 @@ createServer(async (request, response) => {
       if (request.method === "POST" && roomPath.action === "join") {
         if (room.players.enemy) {
           sendJson(response, 409, { error: "Room is full" });
+          return;
+        }
+
+        if (isRateLimited(request, `join_room_${room.id}`, 30, 60_000)) {
+          sendJson(response, 429, { error: "Too many join attempts. Please try again later." });
           return;
         }
 
@@ -304,6 +354,10 @@ createServer(async (request, response) => {
       }
 
       if (request.method === "POST" && roomPath.action === "input") {
+        if (isRateLimited(request, `input_${room.id}`, 10, 1000)) {
+          sendJson(response, 429, { error: "Too many input attempts. Slow it down." });
+          return;
+        }
         const body = await parseJsonBody(request);
         const player = authenticate(room, body.token);
         if (!player) {
@@ -326,6 +380,10 @@ createServer(async (request, response) => {
       }
 
       if (request.method === "POST" && roomPath.action === "action") {
+        if (isRateLimited(request, `action_${room.id}`, 5, 1000)) {
+          sendJson(response, 429, { error: "Don't mash the buttons, man" });
+          return;
+        }
         const body = await parseJsonBody(request);
         const player = authenticate(room, body.token);
         if (!player) {
