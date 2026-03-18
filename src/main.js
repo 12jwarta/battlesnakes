@@ -78,7 +78,7 @@ let cells = [];
 let baseCellClasses = [];
 let tickHandle = null;
 let onlineSession = null;
-const MOBILE_SPEED_SCALE = 1.15;
+const MOBILE_SPEED_SCALE = 1.22;
 
 function isOnlineActive() {
   return Boolean(onlineSession);

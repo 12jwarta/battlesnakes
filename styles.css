@@ -412,6 +412,7 @@ button:hover {
 .hint {
   text-align: center;
   font-size: 0.95rem;
+  margin-bottom: 0;
 }
 
 @media (max-width: 560px) {
@@ -436,17 +437,14 @@ button:hover {
   }
 
   .mobile-actions {
-    position: sticky;
-    bottom: 10px;
-    z-index: 30;
     display: flex;
     gap: 10px;
-    margin: 0 auto 12px;
+    margin: 16px auto 0;
     width: min(100%, 320px);
     padding: 8px;
     border: 1px solid var(--panel-border);
     border-radius: 12px;
-    background: rgba(255, 253, 248, 0.96);
+    background: #f6f2e8;
   }
 
   .mobile-actions button {
