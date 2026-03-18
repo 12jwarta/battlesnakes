@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Battle Snake</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="panel">
+        <div class="panel__header">
+          <div>
+            <h1>Battle Snake</h1>
+            <p class="subtitle">Beat the enemy snake to 15 food.</p>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button id="start-button" type="button">Start / Restart</button>
+          <button id="pause-button" type="button">Pause</button>
+          <button id="online-host-button" type="button">Host Online</button>
+          <div class="join-inline">
+            <input id="join-room-input" type="text" maxlength="8" placeholder="Room code" aria-label="Room code" />
+            <button id="online-join-button" type="button">Join</button>
+          </div>
+          <button id="online-leave-button" type="button">Leave Online</button>
+          <button id="settings-toggle-button" type="button" aria-expanded="false" aria-controls="settings-panel">Show Settings</button>
+          <button id="rules-toggle-button" type="button" aria-expanded="false" aria-controls="rules-panel">Show Rules</button>
+          <p id="status" class="status">Press Start or use an arrow key to begin.</p>
+          <p id="online-status" class="status online-status">Offline (Local AI match)</p>
+        </div>
+
+        <div class="points-bar" aria-label="Snake points bar">
+          <div class="points-row">
+            <span class="points-label">You</span>
+            <div id="player-mini-snake" class="mini-snake mini-snake--player"></div>
+            <strong id="player-mini-score" class="mini-score">0</strong>
+          </div>
+          <div class="points-row">
+            <span class="points-label">Enemy</span>
+            <div id="enemy-mini-snake" class="mini-snake mini-snake--enemy"></div>
+            <strong id="enemy-mini-score" class="mini-score">0</strong>
+          </div>
+        </div>
+
+        <div class="game-area">
+          <div id="board" class="board" aria-label="Battle Snake board" role="grid"></div>
+          <section id="settings-panel" class="settings-panel settings-panel--overlay" hidden>
+            <h2>Settings</h2>
+            <div class="settings-grid">
+              <label for="difficulty-setting">Difficulty</label>
+              <select id="difficulty-setting">
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard" selected>Hard</option>
+                <option value="custom">Custom</option>
+              </select>
+
+              <label for="speed-setting">Speed (ms)</label>
+              <div class="setting-inline">
+                <input id="speed-setting" type="range" min="80" max="260" step="10" value="140" />
+                <span id="speed-setting-value">140</span>
+              </div>
+
+              <label for="enemy-error-enabled">Enemy Error</label>
+              <input id="enemy-error-enabled" type="checkbox" checked />
+
+              <label for="enemy-error-rate-setting">Enemy Error Rate (%)</label>
+              <div class="setting-inline">
+                <input id="enemy-error-rate-setting" type="range" min="0" max="30" step="1" value="0" />
+                <span id="enemy-error-rate-value">0%</span>
+              </div>
+
+              <label for="start-player-points-setting">Starting Player Points</label>
+              <input id="start-player-points-setting" type="number" min="0" max="30" step="1" value="0" />
+
+              <label for="start-enemy-points-setting">Starting Enemy Points</label>
+              <input id="start-enemy-points-setting" type="number" min="0" max="30" step="1" value="0" />
+
+              <label for="start-player-size-setting">Starting Player Size</label>
+              <input id="start-player-size-setting" type="number" min="1" max="30" step="1" value="1" />
+
+              <label for="start-enemy-size-setting">Starting Enemy Size</label>
+              <input id="start-enemy-size-setting" type="number" min="1" max="30" step="1" value="1" />
+            </div>
+          </section>
+          <section id="rules-panel" class="rules-panel rules-panel--overlay" hidden>
+            <h2>Rules</h2>
+            <h3>Initialization</h3>
+            <p>Board is 17x17. Starting point food appears one tile left or right of center. Starting points and starting size for each snake come from Settings, then the snake farther from that starting food gets +1 body segment. Starting body segments begin stacked at each head and spread out as the snake moves.</p>
+            <h3>Food Blocks</h3>
+            <p><strong>Red block:</strong> Point food. Collecting it gives +1 point and starts a one-tick delay, then all food types respawn together.</p>
+            <p><strong>Light green block:</strong> Player food. If player collects it and player points are below player body length, player gains +1 point. If enemy collects it, player loses 1 point (minimum 0).</p>
+            <p><strong>Light blue block:</strong> Enemy food. If enemy collects it and enemy points are below enemy body length, enemy gains +1 point. If player collects it, enemy loses 1 point (minimum 0).</p>
+            <h3>Snake Blocks</h3>
+            <p><strong>Dark head block:</strong> Snake head.</p>
+            <p><strong>Body block:</strong> Snake body segments.</p>
+            <p><strong>Flashing snake:</strong> Stunned from damage and temporarily not moving.</p>
+            <h3>Damage and Losing</h3>
+            <p>On collision damage, a snake loses 1 body segment and 1 point (points do not go below 0), then gets a brief stun. If possible, damaged snakes separate by one tile in random directions. A snake loses by taking damage three times in a row, or if damage drops its body below one segment.</p>
+            <h3>Winning</h3>
+            <p>First snake to 15 points wins.</p>
+          </section>
+        </div>
+
+        <div class="controls" aria-label="Touch controls">
+          <button class="control control--up" type="button" data-direction="UP">Up</button>
+          <button class="control control--left" type="button" data-direction="LEFT">Left</button>
+          <button class="control control--down" type="button" data-direction="DOWN">Down</button>
+          <button class="control control--right" type="button" data-direction="RIGHT">Right</button>
+        </div>
+
+        <p class="hint">Controls: Arrow keys or WASD to move, Space to pause, R to restart.</p>
+      </section>
+    </main>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
