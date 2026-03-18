@@ -51,6 +51,8 @@ const onlineJoinButton = document.querySelector("#online-join-button");
 const onlineLeaveButton = document.querySelector("#online-leave-button");
 const joinRoomInput = document.querySelector("#join-room-input");
 const onlineStatusElement = document.querySelector("#online-status");
+const mobilePauseButton = document.querySelector("#mobile-pause-button");
+const mobileResetButton = document.querySelector("#mobile-reset-button");
 const settingsToggleButton = document.querySelector("#settings-toggle-button");
 const rulesToggleButton = document.querySelector("#rules-toggle-button");
 const settingsPanel = document.querySelector("#settings-panel");
@@ -76,6 +78,7 @@ let cells = [];
 let baseCellClasses = [];
 let tickHandle = null;
 let onlineSession = null;
+const MOBILE_SPEED_SCALE = 1.15;
 
 function isOnlineActive() {
   return Boolean(onlineSession);
@@ -103,9 +106,20 @@ function clampInt(value, min, max) {
 }
 
 function applyPreset(name) {
-  settings = { ...PRESETS[name] };
+  const base = { ...PRESETS[name] };
+  const scaledSpeed = isMobileLayout()
+    ? Math.min(260, Math.round((base.speedMs * MOBILE_SPEED_SCALE) / 10) * 10)
+    : base.speedMs;
+  settings = {
+    ...base,
+    speedMs: scaledSpeed
+  };
   selectedDifficulty = name;
   syncSettingsControls();
+}
+
+function isMobileLayout() {
+  return window.matchMedia("(max-width: 560px), (pointer: coarse)").matches;
 }
 
 function syncSettingsControls() {
@@ -210,6 +224,8 @@ function setActiveOverlay(nextOverlay) {
   onlineJoinButton.disabled = controlsDisabled;
   onlineLeaveButton.disabled = controlsDisabled;
   joinRoomInput.disabled = controlsDisabled;
+  mobilePauseButton.disabled = controlsDisabled;
+  mobileResetButton.disabled = controlsDisabled;
   for (const button of controlButtons) {
     button.disabled = controlsDisabled;
   }
@@ -229,6 +245,11 @@ function updateOnlineControls() {
   if (connected && onlineSession.role !== "player") {
     startButton.disabled = true;
     pauseButton.disabled = true;
+    mobilePauseButton.disabled = true;
+    mobileResetButton.disabled = true;
+  } else {
+    mobilePauseButton.disabled = activeOverlay !== null;
+    mobileResetButton.disabled = activeOverlay !== null;
   }
 }
 
@@ -399,7 +420,9 @@ function render() {
   playerMiniScoreElement.textContent = String(state.player.score);
   enemyMiniScoreElement.textContent = String(state.enemy.score);
   statusElement.textContent = statusMessage(state);
-  pauseButton.textContent = state.status === "paused" ? "Resume" : "Pause";
+  const pauseText = state.status === "paused" ? "Resume" : "Pause";
+  pauseButton.textContent = pauseText;
+  mobilePauseButton.textContent = pauseText;
 }
 
 async function sendOnlineDirection(direction) {
@@ -463,6 +486,77 @@ function applySettingsAndReset() {
   scheduleTick();
 }
 
+function runStartOrRestart() {
+  if (activeOverlay !== null) {
+    return;
+  }
+
+  if (isOnlineActive()) {
+    if (onlineSession.role !== "player") {
+      return;
+    }
+
+    const action = state.status === "ready" || state.status === "paused" ? "start" : "restart";
+    void postJson(`/api/rooms/${onlineSession.roomId}/action`, {
+      token: onlineSession.token,
+      action
+    }).catch((error) => {
+      updateOnlineStatus(`Action failed: ${error.message}`);
+    });
+    return;
+  }
+
+  resetGame();
+  state = startGame(state);
+  render();
+}
+
+function runResetOnly() {
+  if (activeOverlay !== null) {
+    return;
+  }
+
+  if (isOnlineActive()) {
+    if (onlineSession.role !== "player") {
+      return;
+    }
+
+    void postJson(`/api/rooms/${onlineSession.roomId}/action`, {
+      token: onlineSession.token,
+      action: "restart"
+    }).catch((error) => {
+      updateOnlineStatus(`Action failed: ${error.message}`);
+    });
+    return;
+  }
+
+  resetGame();
+}
+
+function runPauseToggle() {
+  if (activeOverlay !== null) {
+    return;
+  }
+
+  if (isOnlineActive()) {
+    if (onlineSession.role !== "player") {
+      return;
+    }
+
+    const action = state.status === "ready" ? "start" : "pause";
+    void postJson(`/api/rooms/${onlineSession.roomId}/action`, {
+      token: onlineSession.token,
+      action
+    }).catch((error) => {
+      updateOnlineStatus(`Action failed: ${error.message}`);
+    });
+    return;
+  }
+
+  state = state.status === "ready" ? startGame(state) : togglePause(state);
+  render();
+}
+
 document.addEventListener("keydown", (event) => {
   if (activeOverlay !== null) {
     return;
@@ -507,52 +601,24 @@ document.addEventListener("keydown", (event) => {
 });
 
 startButton.addEventListener("click", () => {
-  if (activeOverlay !== null) {
+  if (isMobileLayout()) {
+    runResetOnly();
     return;
   }
 
-  if (isOnlineActive()) {
-    if (onlineSession.role !== "player") {
-      return;
-    }
-
-    const action = state.status === "ready" || state.status === "paused" ? "start" : "restart";
-    void postJson(`/api/rooms/${onlineSession.roomId}/action`, {
-      token: onlineSession.token,
-      action
-    }).catch((error) => {
-      updateOnlineStatus(`Action failed: ${error.message}`);
-    });
-    return;
-  }
-
-  resetGame();
-  state = startGame(state);
-  render();
+  runStartOrRestart();
 });
 
 pauseButton.addEventListener("click", () => {
-  if (activeOverlay !== null) {
-    return;
-  }
+  runPauseToggle();
+});
 
-  if (isOnlineActive()) {
-    if (onlineSession.role !== "player") {
-      return;
-    }
+mobilePauseButton.addEventListener("click", () => {
+  runPauseToggle();
+});
 
-    const action = state.status === "ready" ? "start" : "pause";
-    void postJson(`/api/rooms/${onlineSession.roomId}/action`, {
-      token: onlineSession.token,
-      action
-    }).catch((error) => {
-      updateOnlineStatus(`Action failed: ${error.message}`);
-    });
-    return;
-  }
-
-  state = state.status === "ready" ? startGame(state) : togglePause(state);
-  render();
+mobileResetButton.addEventListener("click", () => {
+  runResetOnly();
 });
 
 onlineHostButton.addEventListener("click", async () => {

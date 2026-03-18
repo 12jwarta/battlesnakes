@@ -371,11 +371,11 @@ button:hover {
 }
 
 .controls {
-  width: min(100%, 240px);
+  width: min(100%, 280px);
   margin: 0 auto 12px;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 10px;
 }
 
 .control--up {
@@ -394,6 +394,21 @@ button:hover {
   grid-column: 3;
 }
 
+.control {
+  min-height: 54px;
+  border-radius: 14px;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+
+.mobile-actions {
+  display: none;
+}
+
+.mobile-actions button {
+  flex: 1;
+}
+
 .hint {
   text-align: center;
   font-size: 0.95rem;
@@ -407,5 +422,35 @@ button:hover {
   .toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .controls {
+    width: min(100%, 320px);
+    gap: 12px;
+    margin: 0 auto 10px;
+  }
+
+  .control {
+    min-height: 64px;
+    font-size: 1rem;
+  }
+
+  .mobile-actions {
+    position: sticky;
+    bottom: 10px;
+    z-index: 30;
+    display: flex;
+    gap: 10px;
+    margin: 0 auto 12px;
+    width: min(100%, 320px);
+    padding: 8px;
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    background: rgba(255, 253, 248, 0.96);
+  }
+
+  .mobile-actions button {
+    min-height: 48px;
+    font-weight: 600;
   }
 }
