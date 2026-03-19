@@ -17,19 +17,27 @@
         </div>
 
         <div class="toolbar">
-          <button id="start-button" type="button">Start / Restart</button>
-          <button id="pause-button" type="button">Pause</button>
-          <button id="online-host-button" type="button">Host Online</button>
-          <div class="join-inline">
-            <input id="join-room-input" type="text" maxlength="8" placeholder="Room code" aria-label="Room code" />
-            <button id="online-join-button" type="button">Join</button>
-          </div>
-          <button id="online-leave-button" type="button">Leave Online</button>
-          <button id="settings-toggle-button" type="button" aria-expanded="false" aria-controls="settings-panel">Show Settings</button>
-          <button id="rules-toggle-button" type="button" aria-expanded="false" aria-controls="rules-panel">Show Rules</button>
           <p id="status" class="status">Press Start or use an arrow key to begin.</p>
-          <p id="online-status" class="status online-status">Offline (Local AI match)</p>
         </div>
+        <button id="menu-backdrop" class="menu-backdrop" type="button" aria-hidden="true" hidden></button>
+        <aside id="hamburger-menu" class="hamburger-menu" aria-hidden="true">
+          <h2>Menu</h2>
+          <section class="menu-section">
+            <h3>Online</h3>
+            <button id="online-host-button" type="button">Host Online</button>
+            <div class="join-inline">
+              <input id="join-room-input" type="text" maxlength="8" placeholder="Room code" aria-label="Room code" />
+              <button id="online-join-button" type="button">Join</button>
+            </div>
+            <button id="online-leave-button" type="button">Leave Online</button>
+            <p id="online-status" class="status online-status">Offline (Local AI match)</p>
+          </section>
+          <section class="menu-section">
+            <h3>Panels</h3>
+            <button id="settings-toggle-button" type="button" aria-expanded="false" aria-controls="settings-panel">Show Settings</button>
+            <button id="rules-toggle-button" type="button" aria-expanded="false" aria-controls="rules-panel">Show Rules</button>
+          </section>
+        </aside>
 
         <div class="points-bar" aria-label="Snake points bar">
           <div class="points-row">
@@ -45,6 +53,20 @@
         </div>
 
         <div class="game-area">
+          <div class="board-tools" aria-label="Game controls">
+            <button
+              id="menu-toggle-button"
+              class="board-tool-button board-tool-button--menu"
+              type="button"
+              aria-label="Open menu"
+              aria-expanded="false"
+              aria-controls="hamburger-menu"
+            >
+              <span aria-hidden="true">☰</span>
+            </button>
+            <button id="start-button" class="board-tool-button" type="button" aria-label="Start or restart game">↺</button>
+            <button id="pause-button" class="board-tool-button" type="button" aria-label="Pause game">⏸</button>
+          </div>
           <div id="board" class="board" aria-label="Battle Snake board" role="grid"></div>
           <section id="settings-panel" class="settings-panel settings-panel--overlay" hidden>
             <h2>Settings</h2>
@@ -52,8 +74,8 @@
               <label for="difficulty-setting">Difficulty</label>
               <select id="difficulty-setting">
                 <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard" selected>Hard</option>
+                <option value="medium" selected>Medium</option>
+                <option value="hard">Hard</option>
                 <option value="custom">Custom</option>
               </select>
 
@@ -84,23 +106,49 @@
               <label for="start-enemy-size-setting">Starting Enemy Size</label>
               <input id="start-enemy-size-setting" type="number" min="1" max="30" step="1" value="1" />
             </div>
+            <button id="settings-close-button" type="button" class="panel-close-button">Close</button>
           </section>
           <section id="rules-panel" class="rules-panel rules-panel--overlay" hidden>
             <h2>Rules</h2>
-            <h3>Initialization</h3>
-            <p>Board is 17x17. Starting point food appears one tile left or right of center. Starting points and starting size for each snake come from Settings, then the snake farther from that starting food gets +1 body segment. Starting body segments begin stacked at each head and spread out as the snake moves.</p>
+            <p>Welcome to Battlesnakes! You are the Green Snake (Left). You battle the Blue Snake (Right). You win by doing one of the following:</p>
+            <ul class="rules-list">
+              <li>Getting to 15 points first.</li>
+              <li>Reducing your opponent to zero health.</li>
+              <li>Having your opponent receive damage three game ticks in a row.</li>
+            </ul>
             <h3>Food Blocks</h3>
-            <p><strong>Red block:</strong> Point food. Collecting it gives +1 point and starts a one-tick delay, then all food types respawn together.</p>
-            <p><strong>Light green block:</strong> Player food. If player collects it and player points are below player body length, player gains +1 point. If enemy collects it, player loses 1 point (minimum 0).</p>
-            <p><strong>Light blue block:</strong> Enemy food. If enemy collects it and enemy points are below enemy body length, enemy gains +1 point. If player collects it, enemy loses 1 point (minimum 0).</p>
-            <h3>Snake Blocks</h3>
-            <p><strong>Dark head block:</strong> Snake head.</p>
-            <p><strong>Body block:</strong> Snake body segments.</p>
-            <p><strong>Flashing snake:</strong> Stunned from damage and temporarily not moving.</p>
-            <h3>Damage and Losing</h3>
-            <p>On collision damage, a snake loses 1 body segment and 1 point (points do not go below 0), then gets a brief stun. If possible, damaged snakes separate by one tile in random directions. A snake loses by taking damage three times in a row, or if damage drops its body below one segment.</p>
-            <h3>Winning</h3>
-            <p>First snake to 15 points wins.</p>
+            <p>You gain and lose points with the following food blocks:</p>
+            <table class="rules-food-table" aria-label="Food effects for each snake">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    <span class="rules-snake rules-snake--green" aria-hidden="true"></span>
+                    <small>(Left)</small>
+                  </th>
+                  <th scope="col">
+                    <span class="rules-snake rules-snake--blue" aria-hidden="true"></span>
+                    <small>(Right)</small>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="rules-food-chip rules-food-chip--point" aria-hidden="true"></span> Point food: +1 point. Respawn all blocks</td>
+                  <td><span class="rules-food-chip rules-food-chip--point" aria-hidden="true"></span> Point food: +1 point. Respawn all blocks</td>
+                </tr>
+                <tr>
+                  <td><span class="rules-food-chip rules-food-chip--green" aria-hidden="true"></span> +1 point if your points are below your body length.</td>
+                  <td><span class="rules-food-chip rules-food-chip--green" aria-hidden="true"></span> You lose one point (minimum 0).</td>
+                </tr>
+                <tr>
+                  <td><span class="rules-food-chip rules-food-chip--blue" aria-hidden="true"></span> Enemy loses one point (minimum 0).</td>
+                  <td><span class="rules-food-chip rules-food-chip--blue" aria-hidden="true"></span> +1 point if enemy points are below its body length.</td>
+                </tr>
+              </tbody>
+            </table>
+            <h3>Collision and Damage</h3>
+            <p>A snake takes damage if its head collides with a wall, its own body segment, or its opponents body segment. Both snakes will be damaged in the event of a head-on collision. Upon taking damage, a snake will freeze in place and flash temporarily. If possible, a damaged snake will move one tile in a random direction.</p>
+            <button id="rules-close-button" type="button" class="panel-close-button">Close</button>
           </section>
         </div>
 

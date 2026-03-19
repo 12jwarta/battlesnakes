@@ -12,7 +12,7 @@ const PRESETS = {
   easy: {
     speedMs: 170,
     enemyErrorEnabled: true,
-    enemyErrorRate: 0.1,
+    enemyErrorRate: 0.14,
     startingPlayerPoints: 0,
     startingEnemyPoints: 0,
     startingPlayerSize: 1,
@@ -21,7 +21,7 @@ const PRESETS = {
   medium: {
     speedMs: 150,
     enemyErrorEnabled: true,
-    enemyErrorRate: 0.05,
+    enemyErrorRate: 0.07,
     startingPlayerPoints: 0,
     startingEnemyPoints: 0,
     startingPlayerSize: 1,
@@ -46,6 +46,9 @@ const enemyMiniScoreElement = document.querySelector("#enemy-mini-score");
 const statusElement = document.querySelector("#status");
 const startButton = document.querySelector("#start-button");
 const pauseButton = document.querySelector("#pause-button");
+const menuToggleButton = document.querySelector("#menu-toggle-button");
+const menuBackdrop = document.querySelector("#menu-backdrop");
+const hamburgerMenu = document.querySelector("#hamburger-menu");
 const onlineHostButton = document.querySelector("#online-host-button");
 const onlineJoinButton = document.querySelector("#online-join-button");
 const onlineLeaveButton = document.querySelector("#online-leave-button");
@@ -57,6 +60,8 @@ const settingsToggleButton = document.querySelector("#settings-toggle-button");
 const rulesToggleButton = document.querySelector("#rules-toggle-button");
 const settingsPanel = document.querySelector("#settings-panel");
 const rulesPanel = document.querySelector("#rules-panel");
+const settingsCloseButton = document.querySelector("#settings-close-button");
+const rulesCloseButton = document.querySelector("#rules-close-button");
 const difficultySetting = document.querySelector("#difficulty-setting");
 const speedSetting = document.querySelector("#speed-setting");
 const speedSettingValue = document.querySelector("#speed-setting-value");
@@ -69,8 +74,8 @@ const startPlayerSizeSetting = document.querySelector("#start-player-size-settin
 const startEnemySizeSetting = document.querySelector("#start-enemy-size-setting");
 const controlButtons = document.querySelectorAll("[data-direction]");
 
-let settings = { ...PRESETS.hard };
-let selectedDifficulty = "hard";
+let settings = { ...PRESETS.medium };
+let selectedDifficulty = "medium";
 let activeOverlay = null;
 let suppressSettingEvents = false;
 let state = createGameState(buildGameOptions());
@@ -79,6 +84,7 @@ let baseCellClasses = [];
 let tickHandle = null;
 let onlineSession = null;
 const MOBILE_SPEED_SCALE = 1.22;
+let menuOpen = false;
 
 function isOnlineActive() {
   return Boolean(onlineSession);
@@ -232,16 +238,25 @@ function setActiveOverlay(nextOverlay) {
   updateOnlineControls();
 }
 
+function setMenuOpen(nextOpen) {
+  menuOpen = nextOpen;
+  hamburgerMenu.classList.toggle("is-open", menuOpen);
+  hamburgerMenu.setAttribute("aria-hidden", String(!menuOpen));
+  menuBackdrop.setAttribute("hidden", "");
+  menuToggleButton.setAttribute("aria-expanded", String(menuOpen));
+}
+
 function updateOnlineStatus(text) {
   onlineStatusElement.textContent = text;
 }
 
 function updateOnlineControls() {
   const connected = isOnlineActive();
-  onlineHostButton.disabled = connected || activeOverlay !== null;
-  onlineJoinButton.disabled = connected || activeOverlay !== null;
-  joinRoomInput.disabled = connected || activeOverlay !== null;
-  onlineLeaveButton.disabled = !connected || activeOverlay !== null;
+  const blocked = activeOverlay !== null;
+  onlineHostButton.disabled = connected || blocked;
+  onlineJoinButton.disabled = connected || blocked;
+  joinRoomInput.disabled = connected || blocked;
+  onlineLeaveButton.disabled = !connected || blocked;
   if (connected && onlineSession.role !== "player") {
     startButton.disabled = true;
     pauseButton.disabled = true;
@@ -325,6 +340,7 @@ async function disconnectOnlineSession(message = "Offline (Local AI match)") {
 
 function statusMessage(currentState) {
   const difficultyLabel = currentState.difficulty.charAt(0).toUpperCase() + currentState.difficulty.slice(1);
+  const resultDetails = getResultDetails(currentState);
 
   if (currentState.status === "ready") {
     return `${difficultyLabel} mode. Press Start or use an arrow key to begin.`;
@@ -335,11 +351,11 @@ function statusMessage(currentState) {
   }
 
   if (currentState.status === "player_won") {
-    return `You won! Press Start / Restart or R to play again.`;
+    return `You won by ${resultDetails.playerWonBy}. ${difficultyEncouragement(currentState)} Press Start / Restart or R to play again.`;
   }
 
   if (currentState.status === "enemy_won") {
-    return "Enemy snake wins this round. Press Start / Restart or R to play again.";
+    return `You lost by ${resultDetails.enemyWonBy}. ${difficultyEncouragement(currentState)} Press Start / Restart or R to play again.`;
   }
 
   if (currentState.status === "draw") {
@@ -347,6 +363,67 @@ function statusMessage(currentState) {
   }
 
   return `${difficultyLabel} mode. Race to ${WIN_SCORE}. Damage removes 1 food; lose by 3-hit streak or body < 1.`;
+}
+
+function getResultDetails(currentState) {
+  if (currentState.enemy.droppedBelowLength) {
+    return {
+      playerWonBy: "dropping the enemy below 1 body segment",
+      enemyWonBy: "dropping below 1 body segment"
+    };
+  }
+
+  if (currentState.player.droppedBelowLength) {
+    return {
+      playerWonBy: "dropping the enemy below 1 body segment",
+      enemyWonBy: "dropping below 1 body segment"
+    };
+  }
+
+  if (currentState.enemy.damageStreak >= 3) {
+    return {
+      playerWonBy: "forcing a 3-hit damage streak",
+      enemyWonBy: "a 3-hit damage streak"
+    };
+  }
+
+  if (currentState.player.damageStreak >= 3) {
+    return {
+      playerWonBy: "forcing a 3-hit damage streak",
+      enemyWonBy: "a 3-hit damage streak"
+    };
+  }
+
+  return {
+    playerWonBy: `reaching ${WIN_SCORE} points first`,
+    enemyWonBy: `the enemy reaching ${WIN_SCORE} points first`
+  };
+}
+
+function difficultyEncouragement(currentState) {
+  if (currentState.status === "player_won") {
+    if (currentState.difficulty === "easy") {
+      return "Nice work on Easy, try Medium next.";
+    }
+
+    if (currentState.difficulty === "medium") {
+      return "Strong round on Medium, see how you do on Hard.";
+    }
+
+    return "Hard mode win secured.";
+  }
+
+  if (currentState.status === "enemy_won") {
+    if (currentState.difficulty === "hard") {
+      return "Hard is brutal, try Medium to dial it in.";
+    }
+
+    if (currentState.difficulty === "medium") {
+      return "Try Easy for a round, then climb back up.";
+    }
+  }
+
+  return "";
 }
 
 function render() {
@@ -420,8 +497,11 @@ function render() {
   playerMiniScoreElement.textContent = String(state.player.score);
   enemyMiniScoreElement.textContent = String(state.enemy.score);
   statusElement.textContent = statusMessage(state);
-  const pauseText = state.status === "paused" ? "Resume" : "Pause";
-  pauseButton.textContent = pauseText;
+  const paused = state.status === "paused";
+  pauseButton.textContent = paused ? "▶" : "⏸";
+  pauseButton.setAttribute("aria-label", paused ? "Resume game" : "Pause game");
+  pauseButton.setAttribute("title", paused ? "Resume" : "Pause");
+  const pauseText = paused ? "Resume" : "Pause";
   mobilePauseButton.textContent = pauseText;
 }
 
@@ -558,6 +638,15 @@ function runPauseToggle() {
 }
 
 document.addEventListener("keydown", (event) => {
+  if (menuOpen && event.key === "Escape") {
+    setMenuOpen(false);
+    return;
+  }
+
+  if (menuOpen) {
+    return;
+  }
+
   if (activeOverlay !== null) {
     return;
   }
@@ -613,6 +702,14 @@ pauseButton.addEventListener("click", () => {
   runPauseToggle();
 });
 
+menuToggleButton.addEventListener("click", () => {
+  setMenuOpen(!menuOpen);
+});
+
+menuBackdrop.addEventListener("click", () => {
+  setMenuOpen(false);
+});
+
 mobilePauseButton.addEventListener("click", () => {
   runPauseToggle();
 });
@@ -640,6 +737,7 @@ onlineHostButton.addEventListener("click", async () => {
     };
     updateOnlineStatus(`Hosting room ${created.roomId}. Share this code and press Pause to start when ready.`);
     updateOnlineControls();
+    setMenuOpen(false);
   } catch (error) {
     scheduleTick();
     updateOnlineStatus(`Host failed: ${error.message}`);
@@ -669,6 +767,7 @@ onlineJoinButton.addEventListener("click", async () => {
     };
     updateOnlineStatus(`Joined room ${joined.roomId} as guest.`);
     updateOnlineControls();
+    setMenuOpen(false);
   } catch (error) {
     scheduleTick();
     updateOnlineStatus(`Join failed: ${error.message}`);
@@ -676,15 +775,27 @@ onlineJoinButton.addEventListener("click", async () => {
 });
 
 onlineLeaveButton.addEventListener("click", () => {
-  void disconnectOnlineSession();
+  void disconnectOnlineSession().then(() => {
+    setMenuOpen(false);
+  });
 });
 
 settingsToggleButton.addEventListener("click", () => {
+  setMenuOpen(false);
   setActiveOverlay(activeOverlay === "settings" ? null : "settings");
 });
 
 rulesToggleButton.addEventListener("click", () => {
+  setMenuOpen(false);
   setActiveOverlay(activeOverlay === "rules" ? null : "rules");
+});
+
+settingsCloseButton.addEventListener("click", () => {
+  setActiveOverlay(null);
+});
+
+rulesCloseButton.addEventListener("click", () => {
+  setActiveOverlay(null);
 });
 
 difficultySetting.addEventListener("change", () => {
@@ -730,8 +841,9 @@ for (const button of controlButtons) {
   });
 }
 
-applyPreset("hard");
+applyPreset("medium");
 createBoard();
+setMenuOpen(false);
 setActiveOverlay(null);
 render();
 scheduleTick();

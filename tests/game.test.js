@@ -27,7 +27,7 @@ function test(name, fn) {
 }
 
 test("snake moves one cell in the current direction", () => {
-  let state = createGameState({ rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", rng: () => 0 });
   state = startGame(state);
   state = advanceGame(state, () => 0);
 
@@ -36,18 +36,18 @@ test("snake moves one cell in the current direction", () => {
   assert.equal(state.player.snake.length, 1);
 });
 
-test("default difficulty is hard with current behavior", () => {
+test("default difficulty is medium with current behavior", () => {
   const state = createGameState({ rng: () => 0 });
 
   assert.equal(state.difficulty, DEFAULT_DIFFICULTY);
   assert.equal(DIFFICULTY_SETTINGS.hard.errorRate, 0);
-  assert.equal(DIFFICULTY_SETTINGS.medium.errorRate, 0.05);
-  assert.equal(DIFFICULTY_SETTINGS.easy.errorRate, 0.1);
+  assert.equal(DIFFICULTY_SETTINGS.medium.errorRate, 0.07);
+  assert.equal(DIFFICULTY_SETTINGS.easy.errorRate, 0.14);
   assert.equal(DIFFICULTY_SETTINGS.easy.earlyErrorBias, 0.8);
 });
 
 test("starting food is directly left or right of center", () => {
-  const state = createGameState({ width: 17, height: 17, rng: () => 0 });
+  const state = createGameState({ difficulty: "hard", width: 17, height: 17, rng: () => 0 });
   const centerX = 8;
   const centerY = 8;
 
@@ -58,7 +58,7 @@ test("starting food is directly left or right of center", () => {
 });
 
 test("snakes start closer to board edges", () => {
-  const state = createGameState({ width: 17, height: 17, rng: () => 0 });
+  const state = createGameState({ difficulty: "hard", width: 17, height: 17, rng: () => 0 });
 
   assert.equal(state.player.snake[0].x, 2);
   assert.equal(state.enemy.snake[0].x, 14);
@@ -70,6 +70,7 @@ test("snakes start closer to board edges", () => {
 
 test("custom starting points and sizes are applied", () => {
   const state = createGameState({
+    difficulty: "hard",
     width: 17,
     height: 17,
     startingPlayerPoints: 4,
@@ -86,7 +87,7 @@ test("custom starting points and sizes are applied", () => {
 });
 
 test("snake grows and player score increments after eating food", () => {
-  let state = createGameState({ rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -113,7 +114,7 @@ test("snake grows and player score increments after eating food", () => {
 });
 
 test("reversing direction is ignored", () => {
-  const base = createGameState({ rng: () => 0 });
+  const base = createGameState({ difficulty: "hard", rng: () => 0 });
   const state = {
     ...base,
     player: {
@@ -129,7 +130,7 @@ test("reversing direction is ignored", () => {
 });
 
 test("enemy reversing direction is ignored in human-control mode", () => {
-  const base = createGameState({ enemyControl: "human", rng: () => 0 });
+  const base = createGameState({ difficulty: "hard", enemyControl: "human", rng: () => 0 });
   const state = {
     ...base,
     enemy: {
@@ -145,7 +146,7 @@ test("enemy reversing direction is ignored in human-control mode", () => {
 });
 
 test("enemy follows queued human direction when enemyControl is human", () => {
-  let state = createGameState({ width: 17, height: 17, enemyControl: "human", rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 17, height: 17, enemyControl: "human", rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -171,7 +172,7 @@ test("enemy follows queued human direction when enemyControl is human", () => {
 });
 
 test("hitting the other snake body causes damage and stun", () => {
-  let state = createGameState({ width: 12, height: 8, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 12, height: 8, rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -200,7 +201,7 @@ test("hitting the other snake body causes damage and stun", () => {
 });
 
 test("head-on-head collisions damage both snakes", () => {
-  let state = createGameState({ width: 17, height: 17, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 17, height: 17, rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -234,7 +235,7 @@ test("head-on-head collisions damage both snakes", () => {
 });
 
 test("snake collision knocks snakes one tile apart when possible", () => {
-  let state = createGameState({ width: 17, height: 17, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 17, height: 17, rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -263,7 +264,7 @@ test("snake collision knocks snakes one tile apart when possible", () => {
 });
 
 test("first snake to 15 food wins", () => {
-  let state = createGameState({ rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -290,7 +291,7 @@ test("first snake to 15 food wins", () => {
 });
 
 test("points cannot drop below zero and do not cause immediate loss", () => {
-  let state = createGameState({ width: 10, height: 8, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 10, height: 8, rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -319,7 +320,7 @@ test("points cannot drop below zero and do not cause immediate loss", () => {
 });
 
 test("after player eats, new point food spawns after a brief delay on enemy side", () => {
-  let state = createGameState({ width: 17, height: 17, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 17, height: 17, rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -356,7 +357,7 @@ test("after player eats, new point food spawns after a brief delay on enemy side
 });
 
 test("damaged snake pauses movement until stun expires", () => {
-  let state = createGameState({ width: 10, height: 8, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 10, height: 8, rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -491,7 +492,7 @@ test("medium difficulty avoids immediate wall-suicide when a safe move exists", 
 });
 
 test("snake-specific food stolen by opponent removes owner point only", () => {
-  let state = createGameState({ width: 17, height: 17, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 17, height: 17, rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -528,7 +529,7 @@ test("snake-specific food stolen by opponent removes owner point only", () => {
 });
 
 test("collecting own snake food awards one point when points are below body length", () => {
-  let state = createGameState({ width: 17, height: 17, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 17, height: 17, rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -563,7 +564,7 @@ test("collecting own snake food awards one point when points are below body leng
 });
 
 test("collecting own snake food does not award points when points meet body length", () => {
-  let state = createGameState({ width: 17, height: 17, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 17, height: 17, rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -598,7 +599,7 @@ test("collecting own snake food does not award points when points meet body leng
 });
 
 test("enemy stealing player food only lowers player score", () => {
-  let state = createGameState({ width: 17, height: 17, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 17, height: 17, rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -634,7 +635,7 @@ test("enemy stealing player food only lowers player score", () => {
 });
 
 test("collecting point food respawns all three foods and clears old snake foods", () => {
-  let state = createGameState({ width: 17, height: 17, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 17, height: 17, rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -675,7 +676,7 @@ test("collecting point food respawns all three foods and clears old snake foods"
 });
 
 test("three consecutive damage ticks cause an automatic loss", () => {
-  let state = createGameState({ width: 8, height: 8, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 8, height: 8, rng: () => 0 });
 
   for (let tick = 0; tick < 3; tick += 1) {
     state = {
@@ -710,7 +711,7 @@ test("three consecutive damage ticks cause an automatic loss", () => {
 });
 
 test("damage streak is preserved during stun ticks", () => {
-  let state = createGameState({ width: 8, height: 8, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 8, height: 8, rng: () => 0 });
   state = {
     ...state,
     status: "running",
@@ -743,7 +744,7 @@ test("damage streak is preserved during stun ticks", () => {
 });
 
 test("snake loses immediately when damage would drop body below one segment", () => {
-  let state = createGameState({ width: 8, height: 8, rng: () => 0 });
+  let state = createGameState({ difficulty: "hard", width: 8, height: 8, rng: () => 0 });
   state = {
     ...state,
     status: "running",

@@ -51,9 +51,9 @@ body {
 
 .toolbar {
   display: flex;
-  gap: 16px;
+  gap: 10px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
 .panel__header {
@@ -80,7 +80,9 @@ p {
 }
 
 .join-inline {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  width: 100%;
   align-items: center;
   gap: 8px;
 }
@@ -97,8 +99,8 @@ p {
 }
 
 .online-status {
-  width: 100%;
   font-size: 0.9rem;
+  margin-top: 2px;
 }
 
 button {
@@ -113,6 +115,64 @@ button {
 
 button:hover {
   background: #f1ecdf;
+}
+
+.menu-backdrop {
+  display: none;
+}
+
+.menu-backdrop[hidden] {
+  display: none !important;
+}
+
+.hamburger-menu {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  z-index: 40;
+  width: min(92vw, 330px);
+  max-height: calc(100vh - 28px);
+  overflow: auto;
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  background: #fffaf1;
+  box-shadow: 0 20px 48px rgba(34, 25, 11, 0.2);
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  transform: translate(-50%, -18px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 180ms ease, opacity 160ms ease;
+}
+
+.hamburger-menu.is-open {
+  transform: translate(-50%, 0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.hamburger-menu h2,
+.hamburger-menu h3 {
+  margin: 0;
+}
+
+.hamburger-menu h2 {
+  font-size: 1rem;
+}
+
+.hamburger-menu h3 {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+.menu-section {
+  display: grid;
+  gap: 8px;
+}
+
+.menu-section button {
+  width: 100%;
 }
 
 .rules-panel {
@@ -145,6 +205,110 @@ button:hover {
   line-height: 1.35;
 }
 
+.rules-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.rules-food-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.rules-food-table th,
+.rules-food-table td {
+  border: 1px solid var(--panel-border);
+  padding: 8px;
+  vertical-align: top;
+}
+
+.rules-food-table th {
+  background: #f1eadc;
+  text-align: center;
+}
+
+.rules-food-table th small {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.rules-snake {
+  display: inline-flex;
+  width: 36px;
+  height: 12px;
+  border-radius: 2px;
+  margin-bottom: 4px;
+  position: relative;
+}
+
+.rules-snake::before,
+.rules-snake::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.rules-snake::before {
+  left: 0;
+}
+
+.rules-snake::after {
+  left: 24px;
+}
+
+.rules-snake--green {
+  background: var(--snake);
+}
+
+.rules-snake--green::before {
+  background: var(--snake-head);
+}
+
+.rules-snake--green::after {
+  background: var(--snake);
+}
+
+.rules-snake--blue {
+  background: var(--enemy);
+}
+
+.rules-snake--blue::before {
+  background: var(--enemy-head);
+}
+
+.rules-snake--blue::after {
+  background: var(--enemy);
+}
+
+.rules-food-chip {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.rules-food-chip--point {
+  background: var(--food);
+}
+
+.rules-food-chip--green {
+  background: var(--player-food);
+}
+
+.rules-food-chip--blue {
+  background: var(--enemy-food);
+}
+
 .rules-panel[hidden] {
   display: none !important;
 }
@@ -162,6 +326,11 @@ button:hover {
 .settings-panel h2 {
   margin: 0;
   font-size: 1.05rem;
+}
+
+.panel-close-button {
+  justify-self: end;
+  margin-top: 6px;
 }
 
 .settings-grid {
@@ -201,6 +370,31 @@ button:hover {
   width: var(--board-size);
   margin: 0 auto 16px;
   position: relative;
+  overflow: visible;
+}
+
+.board-tools {
+  position: absolute;
+  top: 0;
+  left: -56px;
+  display: grid;
+  gap: 8px;
+  z-index: 32;
+}
+
+.board-tool-button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 1rem;
+  display: grid;
+  place-items: center;
+}
+
+.board-tool-button--menu {
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
 .board {
@@ -421,8 +615,28 @@ button:hover {
   }
 
   .toolbar {
-    align-items: flex-start;
-    flex-direction: column;
+    display: block;
+  }
+
+  .board-tools {
+    left: -48px;
+    gap: 6px;
+  }
+
+  .board-tool-button {
+    width: 38px;
+    height: 38px;
+    font-size: 0.92rem;
+  }
+
+  .hamburger-menu {
+    top: 10px;
+    bottom: auto;
+    left: 50%;
+    width: min(96vw, 340px);
+    max-height: calc(100vh - 20px);
+    border-radius: 12px;
+    transform: translate(-50%, -18px);
   }
 
   .controls {
