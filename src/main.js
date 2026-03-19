@@ -72,10 +72,12 @@ const startPlayerPointsSetting = document.querySelector("#start-player-points-se
 const startEnemyPointsSetting = document.querySelector("#start-enemy-points-setting");
 const startPlayerSizeSetting = document.querySelector("#start-player-size-setting");
 const startEnemySizeSetting = document.querySelector("#start-enemy-size-setting");
+const colorblindSetting = document.querySelector("#colorblind-setting");
+const rulesColorblindToggle = document.querySelector("#rules-colorblind-toggle");
 const controlButtons = document.querySelectorAll("[data-direction]");
 
-let settings = { ...PRESETS.medium };
-let selectedDifficulty = "medium";
+let settings = { ...PRESETS.easy };
+let selectedDifficulty = "easy";
 let activeOverlay = null;
 let suppressSettingEvents = false;
 let state = createGameState(buildGameOptions());
@@ -85,6 +87,7 @@ let tickHandle = null;
 let onlineSession = null;
 const MOBILE_SPEED_SCALE = 1.22;
 let menuOpen = false;
+let colorblindMode = false;
 
 function isOnlineActive() {
   return Boolean(onlineSession);
@@ -140,7 +143,16 @@ function syncSettingsControls() {
   startEnemyPointsSetting.value = String(settings.startingEnemyPoints);
   startPlayerSizeSetting.value = String(settings.startingPlayerSize);
   startEnemySizeSetting.value = String(settings.startingEnemySize);
+  colorblindSetting.checked = colorblindMode;
+  rulesColorblindToggle.checked = colorblindMode;
   suppressSettingEvents = false;
+}
+
+function applyColorblindMode(enabled) {
+  colorblindMode = enabled;
+  document.documentElement.classList.toggle("colorblind-mode", colorblindMode);
+  colorblindSetting.checked = colorblindMode;
+  rulesColorblindToggle.checked = colorblindMode;
 }
 
 function markCustomDifficulty() {
@@ -835,13 +847,22 @@ for (const input of customInputs) {
   });
 }
 
+colorblindSetting.addEventListener("change", () => {
+  applyColorblindMode(colorblindSetting.checked);
+});
+
+rulesColorblindToggle.addEventListener("change", () => {
+  applyColorblindMode(rulesColorblindToggle.checked);
+});
+
 for (const button of controlButtons) {
   button.addEventListener("click", () => {
     handleDirection(button.dataset.direction);
   });
 }
 
-applyPreset("medium");
+applyPreset("easy");
+applyColorblindMode(false);
 createBoard();
 setMenuOpen(false);
 setActiveOverlay(null);

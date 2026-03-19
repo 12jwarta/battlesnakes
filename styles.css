@@ -23,6 +23,20 @@
   --enemy-lit: #88aacc;
 }
 
+.colorblind-mode {
+  --snake: #0f6fb5;
+  --snake-head: #07426d;
+  --enemy: #c47a00;
+  --enemy-head: #7a4c00;
+  --food: #f2cf00;
+  --player-food: #7a3eb1;
+  --enemy-food: #009c8a;
+  --left-zone-bg: #e8eef6;
+  --right-zone-bg: #f4ece1;
+  --player-lit: #6eb4ea;
+  --enemy-lit: #e0b45d;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -307,6 +321,16 @@ button:hover {
 
 .rules-food-chip--blue {
   background: var(--enemy-food);
+}
+
+.rules-toggle-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 .rules-panel[hidden] {

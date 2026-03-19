@@ -2,7 +2,7 @@ export const BOARD_SIZE = 17;
 export const WIN_SCORE = 15;
 export const DAMAGE_STUN_TICKS = 6;
 export const FOOD_SPAWN_DELAY_TICKS = 1;
-export const DEFAULT_DIFFICULTY = "medium";
+export const DEFAULT_DIFFICULTY = "easy";
 export const DIFFICULTY_SETTINGS = {
   easy: { errorRate: 0.14, earlyErrorBias: 0.8 },
   medium: { errorRate: 0.07, earlyErrorBias: 0.8 },

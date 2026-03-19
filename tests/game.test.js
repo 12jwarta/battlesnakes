@@ -36,7 +36,7 @@ test("snake moves one cell in the current direction", () => {
   assert.equal(state.player.snake.length, 1);
 });
 
-test("default difficulty is medium with current behavior", () => {
+test("default difficulty is easy with current behavior", () => {
   const state = createGameState({ rng: () => 0 });
 
   assert.equal(state.difficulty, DEFAULT_DIFFICULTY);

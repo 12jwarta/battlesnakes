@@ -73,8 +73,8 @@
             <div class="settings-grid">
               <label for="difficulty-setting">Difficulty</label>
               <select id="difficulty-setting">
-                <option value="easy">Easy</option>
-                <option value="medium" selected>Medium</option>
+                <option value="easy" selected>Easy</option>
+                <option value="medium">Medium</option>
                 <option value="hard">Hard</option>
                 <option value="custom">Custom</option>
               </select>
@@ -105,6 +105,9 @@
 
               <label for="start-enemy-size-setting">Starting Enemy Size</label>
               <input id="start-enemy-size-setting" type="number" min="1" max="30" step="1" value="1" />
+
+              <label for="colorblind-setting">Colorblind Mode</label>
+              <input id="colorblind-setting" type="checkbox" />
             </div>
             <button id="settings-close-button" type="button" class="panel-close-button">Close</button>
           </section>
@@ -146,6 +149,11 @@
                 </tr>
               </tbody>
             </table>
+            <label class="rules-toggle-inline" for="rules-colorblind-toggle">
+              <span>Colorblind Mode</span>
+              <input id="rules-colorblind-toggle" type="checkbox" />
+            </label>
+            <p class="rules-strategy-note">Strategy note: when a snake collects a point block, the next point block spawns on that snake&apos;s opponent side of the board, regardless of where the point was collected. If your opponent starts scoring in your territory, point spawns can snowball against you. Look for chances to take point blocks in your opponent&apos;s territory whenever possible.</p>
             <h3>Collision and Damage</h3>
             <p>A snake takes damage if its head collides with a wall, its own body segment, or its opponents body segment. Both snakes will be damaged in the event of a head-on collision. Upon taking damage, a snake will freeze in place and flash temporarily. If possible, a damaged snake will move one tile in a random direction.</p>
             <button id="rules-close-button" type="button" class="panel-close-button">Close</button>
