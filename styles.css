@@ -379,6 +379,27 @@ button:hover {
   color: inherit;
 }
 
+.control-scheme-options {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.control-scheme-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.control-scheme-options input {
+  width: auto;
+  margin: 0;
+}
+
 .setting-inline {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -419,6 +440,12 @@ button:hover {
 .board-tool-button--menu {
   font-size: 1.2rem;
   line-height: 1;
+}
+
+.board-tool-button--controls {
+  font-size: 1.05rem;
+  line-height: 1;
+  display: none;
 }
 
 .board {
@@ -596,6 +623,10 @@ button:hover {
   gap: 10px;
 }
 
+.controls[hidden] {
+  display: none !important;
+}
+
 .control--up {
   grid-column: 2;
 }
@@ -617,6 +648,15 @@ button:hover {
   border-radius: 14px;
   font-weight: 600;
   touch-action: manipulation;
+}
+
+.controls--relative {
+  grid-template-columns: repeat(2, 1fr);
+  width: min(100%, 280px);
+}
+
+.control--turn {
+  min-height: 54px;
 }
 
 .mobile-actions {
@@ -653,6 +693,10 @@ button:hover {
     font-size: 0.92rem;
   }
 
+  .board-tool-button--controls {
+    display: grid;
+  }
+
   .hamburger-menu {
     top: 10px;
     bottom: auto;
@@ -667,6 +711,10 @@ button:hover {
     width: min(100%, 320px);
     gap: 12px;
     margin: 0 auto 10px;
+  }
+
+  .controls--relative {
+    width: min(100%, 320px);
   }
 
   .control {

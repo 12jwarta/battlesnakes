@@ -62,12 +62,41 @@
               aria-expanded="false"
               aria-controls="hamburger-menu"
             >
-              <span aria-hidden="true">☰</span>
+              <span aria-hidden="true">&#9776;</span>
             </button>
-            <button id="start-button" class="board-tool-button" type="button" aria-label="Start or restart game">↺</button>
-            <button id="pause-button" class="board-tool-button" type="button" aria-label="Pause game">⏸</button>
+            <button id="start-button" class="board-tool-button" type="button" aria-label="Start or restart game">&#8634;</button>
+            <button id="pause-button" class="board-tool-button" type="button" aria-label="Pause game">&#9208;</button>
+            <button
+              id="controls-toggle-button"
+              class="board-tool-button board-tool-button--controls"
+              type="button"
+              aria-label="Open controls menu"
+              aria-expanded="false"
+              aria-controls="controls-panel"
+            >
+              <span aria-hidden="true">&#127918;</span>
+            </button>
           </div>
           <div id="board" class="board" aria-label="Battle Snake board" role="grid"></div>
+
+          <section id="controls-panel" class="settings-panel settings-panel--overlay" hidden>
+            <h2>Controls</h2>
+            <div class="settings-grid">
+              <label>Control Scheme</label>
+              <fieldset class="control-scheme-options" id="control-scheme-setting">
+                <label>
+                  <input id="control-scheme-dpad" type="radio" name="control-scheme" value="dpad" checked />
+                  <span>D-pad (4 buttons)</span>
+                </label>
+                <label>
+                  <input id="control-scheme-relative" type="radio" name="control-scheme" value="relative" />
+                  <span>Relative Turn (2 buttons)</span>
+                </label>
+              </fieldset>
+            </div>
+            <button id="controls-close-button" type="button" class="panel-close-button">Close</button>
+          </section>
+
           <section id="settings-panel" class="settings-panel settings-panel--overlay" hidden>
             <h2>Settings</h2>
             <div class="settings-grid">
@@ -111,6 +140,7 @@
             </div>
             <button id="settings-close-button" type="button" class="panel-close-button">Close</button>
           </section>
+
           <section id="rules-panel" class="rules-panel rules-panel--overlay" hidden>
             <h2>Rules</h2>
             <p>Welcome to Battlesnakes! You are the Green Snake (Left). You battle the Blue Snake (Right). You win by doing one of the following:</p>
@@ -160,11 +190,15 @@
           </section>
         </div>
 
-        <div class="controls" aria-label="Touch controls">
+        <div id="dpad-controls" class="controls" aria-label="Touch controls">
           <button class="control control--up" type="button" data-direction="UP">Up</button>
           <button class="control control--left" type="button" data-direction="LEFT">Left</button>
           <button class="control control--down" type="button" data-direction="DOWN">Down</button>
           <button class="control control--right" type="button" data-direction="RIGHT">Right</button>
+        </div>
+        <div id="relative-controls" class="controls controls--relative" aria-label="Relative touch controls" hidden>
+          <button id="turn-left-button" class="control control--turn" type="button">Turn Left</button>
+          <button id="turn-right-button" class="control control--turn" type="button">Turn Right</button>
         </div>
         <p class="hint">Controls: Arrow keys or WASD to move, Space to pause, R to restart.</p>
         <div class="mobile-actions" aria-label="Mobile game actions">

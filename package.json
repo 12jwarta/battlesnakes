@@ -6,5 +6,8 @@
   "scripts": {
     "dev": "node server.js",
     "test": "node tests/game.test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
   }
 }

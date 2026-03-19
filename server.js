@@ -2,6 +2,7 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
+import { WebSocketServer } from "ws";
 
 import {
   advanceGame,
@@ -16,6 +17,18 @@ import {
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = process.cwd();
 const ROOM_TTL_MS = 1000 * 60 * 60;
+
+const RATE_LIMITS = {
+  createRoom: { limit: 5, windowMs: 60_000 },
+  joinRoom: { limit: 30, windowMs: 60_000 },
+  inputHttp: { limit: 10, windowMs: 1_000 },
+  actionHttp: { limit: 5, windowMs: 1_000 },
+  wsConnectIp: { limit: 30, windowMs: 60_000 },
+  wsConnectRoom: { limit: 20, windowMs: 60_000 },
+  wsInput: { limit: 25, windowMs: 1_000 },
+  wsAction: { limit: 10, windowMs: 5_000 },
+  wsPing: { limit: 5, windowMs: 1_000 }
+};
 
 const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -35,14 +48,12 @@ function getClientIp(request) {
   return request.socket.remoteAddress || "unknown";
 }
 
-function isRateLimited(request, actionKey, limit, windowMs) {
-  const ip = getClientIp(request);
-  const key = `${actionKey}:${ip}`;
-  const now = Date.now();
-  const bucket = rateBuckets.get(key);
+function consumeRateLimit(subjectKey, limit, windowMs) {
+  const currentTime = Date.now();
+  const bucket = rateBuckets.get(subjectKey);
 
-  if (!bucket || now - bucket.windowStart >= windowMs) {
-    rateBuckets.set(key, { windowStart: now, count: 1, windowMs });
+  if (!bucket || currentTime - bucket.windowStart >= windowMs) {
+    rateBuckets.set(subjectKey, { windowStart: currentTime, count: 1, windowMs });
     return false;
   }
 
@@ -52,8 +63,13 @@ function isRateLimited(request, actionKey, limit, windowMs) {
     return true;
   }
 
-  rateBuckets.set(key, bucket);
+  rateBuckets.set(subjectKey, bucket);
   return false;
+}
+
+function isRateLimited(request, actionKey, limit, windowMs) {
+  const ip = getClientIp(request);
+  return consumeRateLimit(`${actionKey}:${ip}`, limit, windowMs);
 }
 
 function maybeCleanupRateBuckets() {
@@ -158,13 +174,33 @@ function sendSseEvent(response, eventName, data) {
   response.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
+function sendClientSnapshot(room, client) {
+  const payload = {
+    type: "snapshot",
+    ...roomPublicState(room),
+    you: client.role
+  };
+
+  if (client.type === "sse") {
+    sendSseEvent(client.response, "snapshot", payload);
+    return;
+  }
+
+  if (client.type === "ws" && client.socket.readyState === client.socket.OPEN) {
+    client.socket.send(JSON.stringify(payload));
+  }
+}
+
+function sendWsError(socket, message) {
+  if (socket.readyState === socket.OPEN) {
+    socket.send(JSON.stringify({ type: "error", error: message }));
+  }
+}
+
 function broadcastSnapshot(room) {
   room.lastActivityAt = now();
   for (const client of room.clients) {
-    sendSseEvent(client.response, "snapshot", {
-      ...roomPublicState(room),
-      you: client.role
-    });
+    sendClientSnapshot(room, client);
   }
 }
 
@@ -194,7 +230,7 @@ function stopRoomLoop(room) {
 }
 
 function findRoomByPath(pathname) {
-  const roomMatch = pathname.match(/^\/api\/rooms\/([A-Za-z0-9]+)(?:\/(join|input|action|stream|leave))?$/);
+  const roomMatch = pathname.match(/^\/api\/rooms\/([A-Za-z0-9]+)(?:\/(join|input|action|stream|leave|ws))?$/);
   if (!roomMatch) {
     return null;
   }
@@ -252,23 +288,64 @@ function maybeCleanupRooms() {
     if (room.lastActivityAt < cutoff) {
       stopRoomLoop(room);
       for (const client of room.clients) {
-        client.response.end();
+        try {
+          if (client.type === "sse") {
+            client.response.end();
+          } else if (client.type === "ws") {
+            client.socket.close(1000, "Room expired");
+          }
+        } catch {
+          // Ignore close cleanup errors.
+        }
       }
       rooms.delete(room.id);
     }
   }
 }
 
-setInterval(maybeCleanupRooms, 60_000).unref();
-setInterval(maybeCleanupRateBuckets, 60_000).unref();
+function applyRoomInput(room, player, direction) {
+  if (typeof direction !== "string") {
+    return { ok: false, status: 400, error: "Invalid direction" };
+  }
 
-createServer(async (request, response) => {
+  room.state = player.role === "player"
+    ? queueDirection(room.state, direction)
+    : queueEnemyDirection(room.state, direction);
+  broadcastSnapshot(room);
+  return { ok: true };
+}
+
+function applyRoomAction(room, player, action) {
+  if (player.role !== "player") {
+    return { ok: false, status: 403, error: "Only host can manage the match" };
+  }
+
+  if (action === "start") {
+    room.state = startGame(room.state);
+  } else if (action === "pause") {
+    room.state = togglePause(room.state);
+  } else if (action === "restart") {
+    room.state = restartGame(room.settings);
+  } else {
+    return { ok: false, status: 400, error: "Invalid action" };
+  }
+
+  broadcastSnapshot(room);
+  return { ok: true };
+}
+
+const wss = new WebSocketServer({
+  noServer: true,
+  maxPayload: 2048
+});
+
+const server = createServer(async (request, response) => {
   try {
     const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
     const pathname = requestUrl.pathname;
 
     if (request.method === "POST" && pathname === "/api/rooms") {
-      if (isRateLimited(request, "create_room", 5, 60_000)) {
+      if (isRateLimited(request, "create_room", RATE_LIMITS.createRoom.limit, RATE_LIMITS.createRoom.windowMs)) {
         sendJson(response, 429, { error: "Too many room creation attempts. Please try again later." });
         return;
       }
@@ -301,7 +378,7 @@ createServer(async (request, response) => {
           return;
         }
 
-        if (isRateLimited(request, `join_room_${room.id}`, 30, 60_000)) {
+        if (isRateLimited(request, `join_room_${room.id}`, RATE_LIMITS.joinRoom.limit, RATE_LIMITS.joinRoom.windowMs)) {
           sendJson(response, 429, { error: "Too many join attempts. Please try again later." });
           return;
         }
@@ -337,15 +414,13 @@ createServer(async (request, response) => {
         });
 
         const client = {
+          type: "sse",
           role: player.role,
           response
         };
         room.clients.add(client);
         room.lastActivityAt = now();
-        sendSseEvent(response, "snapshot", {
-          ...roomPublicState(room),
-          you: player.role
-        });
+        sendClientSnapshot(room, client);
 
         request.on("close", () => {
           room.clients.delete(client);
@@ -354,7 +429,7 @@ createServer(async (request, response) => {
       }
 
       if (request.method === "POST" && roomPath.action === "input") {
-        if (isRateLimited(request, `input_${room.id}`, 10, 1000)) {
+        if (isRateLimited(request, `input_${room.id}`, RATE_LIMITS.inputHttp.limit, RATE_LIMITS.inputHttp.windowMs)) {
           sendJson(response, 429, { error: "Too many input attempts. Slow it down." });
           return;
         }
@@ -365,22 +440,17 @@ createServer(async (request, response) => {
           return;
         }
 
-        const direction = body.direction;
-        if (typeof direction !== "string") {
-          sendJson(response, 400, { error: "Invalid direction" });
+        const inputResult = applyRoomInput(room, player, body.direction);
+        if (!inputResult.ok) {
+          sendJson(response, inputResult.status, { error: inputResult.error });
           return;
         }
-
-        room.state = player.role === "player"
-          ? queueDirection(room.state, direction)
-          : queueEnemyDirection(room.state, direction);
-        broadcastSnapshot(room);
         sendJson(response, 200, { ok: true });
         return;
       }
 
       if (request.method === "POST" && roomPath.action === "action") {
-        if (isRateLimited(request, `action_${room.id}`, 5, 1000)) {
+        if (isRateLimited(request, `action_${room.id}`, RATE_LIMITS.actionHttp.limit, RATE_LIMITS.actionHttp.windowMs)) {
           sendJson(response, 429, { error: "Don't mash the buttons, man" });
           return;
         }
@@ -391,24 +461,11 @@ createServer(async (request, response) => {
           return;
         }
 
-        if (player.role !== "player") {
-          sendJson(response, 403, { error: "Only host can manage the match" });
+        const actionResult = applyRoomAction(room, player, body.action);
+        if (!actionResult.ok) {
+          sendJson(response, actionResult.status, { error: actionResult.error });
           return;
         }
-
-        const action = body.action;
-        if (action === "start") {
-          room.state = startGame(room.state);
-        } else if (action === "pause") {
-          room.state = togglePause(room.state);
-        } else if (action === "restart") {
-          room.state = restartGame(room.settings);
-        } else {
-          sendJson(response, 400, { error: "Invalid action" });
-          return;
-        }
-
-        broadcastSnapshot(room);
         sendJson(response, 200, { ok: true });
         return;
       }
@@ -427,10 +484,19 @@ createServer(async (request, response) => {
           room.players.enemy = null;
         }
 
-        for (const client of room.clients) {
+        for (const client of [...room.clients]) {
           if (client.role === player.role) {
-            client.response.end();
-            room.clients.delete(client);
+            try {
+              if (client.type === "sse") {
+                client.response.end();
+              } else if (client.type === "ws") {
+                client.socket.close(1000, "Player left");
+              }
+            } catch {
+              // Ignore close cleanup errors.
+            } finally {
+              room.clients.delete(client);
+            }
           }
         }
 
@@ -471,6 +537,151 @@ createServer(async (request, response) => {
   } catch (error) {
     sendJson(response, 500, { error: "Internal server error", detail: String(error.message || error) });
   }
-}).listen(PORT, () => {
+});
+
+server.on("upgrade", (request, socket, head) => {
+  try {
+    const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
+    const roomPath = findRoomByPath(requestUrl.pathname);
+    if (!roomPath || roomPath.action !== "ws") {
+      socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    const room = rooms.get(roomPath.roomId);
+    if (!room) {
+      socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    const token = requestUrl.searchParams.get("token");
+    const player = authenticate(room, token);
+    if (!player) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    const ip = getClientIp(request);
+    if (
+      consumeRateLimit(`ws_connect_ip:${ip}`, RATE_LIMITS.wsConnectIp.limit, RATE_LIMITS.wsConnectIp.windowMs)
+      || consumeRateLimit(`ws_connect_room:${room.id}:${ip}`, RATE_LIMITS.wsConnectRoom.limit, RATE_LIMITS.wsConnectRoom.windowMs)
+    ) {
+      socket.write("HTTP/1.1 429 Too Many Requests\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      const client = {
+        type: "ws",
+        role: player.role,
+        socket: ws,
+        roomId: room.id,
+        ip
+      };
+      room.clients.add(client);
+      room.lastActivityAt = now();
+      sendClientSnapshot(room, client);
+
+      ws.on("message", (raw) => {
+        let payload;
+        try {
+          payload = JSON.parse(raw.toString());
+        } catch {
+          sendWsError(ws, "Invalid message payload");
+          return;
+        }
+
+        if (!payload || typeof payload.type !== "string") {
+          sendWsError(ws, "Invalid message format");
+          return;
+        }
+
+        const activeRoom = rooms.get(client.roomId);
+        if (!activeRoom) {
+          sendWsError(ws, "Room is no longer available");
+          return;
+        }
+
+        const activePlayer = activeRoom.players[player.role];
+        if (!activePlayer || activePlayer.token !== player.token) {
+          sendWsError(ws, "Unauthorized socket message");
+          return;
+        }
+
+        if (payload.type === "input") {
+          if (
+            consumeRateLimit(
+              `ws_input:${activeRoom.id}:${client.role}:${client.ip}`,
+              RATE_LIMITS.wsInput.limit,
+              RATE_LIMITS.wsInput.windowMs
+            )
+          ) {
+            sendWsError(ws, "Too many input messages");
+            return;
+          }
+
+          const inputResult = applyRoomInput(activeRoom, activePlayer, payload.direction);
+          if (!inputResult.ok) {
+            sendWsError(ws, inputResult.error);
+          }
+          return;
+        }
+
+        if (payload.type === "action") {
+          if (
+            consumeRateLimit(
+              `ws_action:${activeRoom.id}:${client.role}:${client.ip}`,
+              RATE_LIMITS.wsAction.limit,
+              RATE_LIMITS.wsAction.windowMs
+            )
+          ) {
+            sendWsError(ws, "Too many action messages");
+            return;
+          }
+
+          const actionResult = applyRoomAction(activeRoom, activePlayer, payload.action);
+          if (!actionResult.ok) {
+            sendWsError(ws, actionResult.error);
+          }
+          return;
+        }
+
+        if (payload.type === "ping") {
+          if (
+            consumeRateLimit(
+              `ws_ping:${activeRoom.id}:${client.role}:${client.ip}`,
+              RATE_LIMITS.wsPing.limit,
+              RATE_LIMITS.wsPing.windowMs
+            )
+          ) {
+            return;
+          }
+          if (ws.readyState === ws.OPEN) {
+            ws.send(JSON.stringify({ type: "pong", t: payload.t ?? null }));
+          }
+          return;
+        }
+
+        sendWsError(ws, "Unknown message type");
+      });
+
+      ws.on("close", () => {
+        room.clients.delete(client);
+      });
+    });
+  } catch {
+    socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+    socket.destroy();
+  }
+});
+
+setInterval(maybeCleanupRooms, 60_000).unref();
+setInterval(maybeCleanupRateBuckets, 60_000).unref();
+
+server.listen(PORT, () => {
   console.log(`Battle Snake is running at http://localhost:${PORT}`);
 });

@@ -47,6 +47,7 @@ const statusElement = document.querySelector("#status");
 const startButton = document.querySelector("#start-button");
 const pauseButton = document.querySelector("#pause-button");
 const menuToggleButton = document.querySelector("#menu-toggle-button");
+const controlsToggleButton = document.querySelector("#controls-toggle-button");
 const menuBackdrop = document.querySelector("#menu-backdrop");
 const hamburgerMenu = document.querySelector("#hamburger-menu");
 const onlineHostButton = document.querySelector("#online-host-button");
@@ -60,8 +61,10 @@ const settingsToggleButton = document.querySelector("#settings-toggle-button");
 const rulesToggleButton = document.querySelector("#rules-toggle-button");
 const settingsPanel = document.querySelector("#settings-panel");
 const rulesPanel = document.querySelector("#rules-panel");
+const controlsPanel = document.querySelector("#controls-panel");
 const settingsCloseButton = document.querySelector("#settings-close-button");
 const rulesCloseButton = document.querySelector("#rules-close-button");
+const controlsCloseButton = document.querySelector("#controls-close-button");
 const difficultySetting = document.querySelector("#difficulty-setting");
 const speedSetting = document.querySelector("#speed-setting");
 const speedSettingValue = document.querySelector("#speed-setting-value");
@@ -75,6 +78,12 @@ const startEnemySizeSetting = document.querySelector("#start-enemy-size-setting"
 const colorblindSetting = document.querySelector("#colorblind-setting");
 const rulesColorblindToggle = document.querySelector("#rules-colorblind-toggle");
 const controlButtons = document.querySelectorAll("[data-direction]");
+const dpadControlsElement = document.querySelector("#dpad-controls");
+const relativeControlsElement = document.querySelector("#relative-controls");
+const controlSchemeDpadInput = document.querySelector("#control-scheme-dpad");
+const controlSchemeRelativeInput = document.querySelector("#control-scheme-relative");
+const turnLeftButton = document.querySelector("#turn-left-button");
+const turnRightButton = document.querySelector("#turn-right-button");
 
 let settings = { ...PRESETS.easy };
 let selectedDifficulty = "easy";
@@ -88,6 +97,7 @@ let onlineSession = null;
 const MOBILE_SPEED_SCALE = 1.22;
 let menuOpen = false;
 let colorblindMode = false;
+let controlScheme = "dpad";
 
 function isOnlineActive() {
   return Boolean(onlineSession);
@@ -155,6 +165,21 @@ function applyColorblindMode(enabled) {
   rulesColorblindToggle.checked = colorblindMode;
 }
 
+function applyControlScheme(nextScheme) {
+  controlScheme = nextScheme === "relative" ? "relative" : "dpad";
+  controlSchemeDpadInput.checked = controlScheme === "dpad";
+  controlSchemeRelativeInput.checked = controlScheme === "relative";
+
+  if (controlScheme === "relative") {
+    relativeControlsElement.removeAttribute("hidden");
+    dpadControlsElement?.setAttribute("hidden", "");
+    return;
+  }
+
+  relativeControlsElement.setAttribute("hidden", "");
+  dpadControlsElement?.removeAttribute("hidden");
+}
+
 function markCustomDifficulty() {
   if (selectedDifficulty !== "custom") {
     selectedDifficulty = "custom";
@@ -217,6 +242,7 @@ function setActiveOverlay(nextOverlay) {
   activeOverlay = nextOverlay;
   const showingRules = activeOverlay === "rules";
   const showingSettings = activeOverlay === "settings";
+  const showingControls = activeOverlay === "controls";
 
   if (showingRules) {
     rulesPanel.removeAttribute("hidden");
@@ -230,20 +256,30 @@ function setActiveOverlay(nextOverlay) {
     settingsPanel.setAttribute("hidden", "");
   }
 
+  if (showingControls) {
+    controlsPanel.removeAttribute("hidden");
+  } else {
+    controlsPanel.setAttribute("hidden", "");
+  }
+
   rulesToggleButton.textContent = showingRules ? "Hide Rules" : "Show Rules";
   rulesToggleButton.setAttribute("aria-expanded", String(showingRules));
   settingsToggleButton.textContent = showingSettings ? "Hide Settings" : "Show Settings";
   settingsToggleButton.setAttribute("aria-expanded", String(showingSettings));
+  controlsToggleButton.setAttribute("aria-expanded", String(showingControls));
 
   const controlsDisabled = activeOverlay !== null;
   startButton.disabled = controlsDisabled;
   pauseButton.disabled = controlsDisabled;
+  controlsToggleButton.disabled = controlsDisabled;
   onlineHostButton.disabled = controlsDisabled;
   onlineJoinButton.disabled = controlsDisabled;
   onlineLeaveButton.disabled = controlsDisabled;
   joinRoomInput.disabled = controlsDisabled;
   mobilePauseButton.disabled = controlsDisabled;
   mobileResetButton.disabled = controlsDisabled;
+  turnLeftButton.disabled = controlsDisabled;
+  turnRightButton.disabled = controlsDisabled;
   for (const button of controlButtons) {
     button.disabled = controlsDisabled;
   }
@@ -256,6 +292,68 @@ function setMenuOpen(nextOpen) {
   hamburgerMenu.setAttribute("aria-hidden", String(!menuOpen));
   menuBackdrop.setAttribute("hidden", "");
   menuToggleButton.setAttribute("aria-expanded", String(menuOpen));
+}
+
+function mirrorDirection(direction) {
+  if (direction === "LEFT") {
+    return "RIGHT";
+  }
+  if (direction === "RIGHT") {
+    return "LEFT";
+  }
+  return direction;
+}
+
+function mirrorSide(side) {
+  if (side === "left") {
+    return "right";
+  }
+  if (side === "right") {
+    return "left";
+  }
+  return side;
+}
+
+function mirrorCell(cell, width) {
+  if (!cell) {
+    return null;
+  }
+  return {
+    x: width - 1 - cell.x,
+    y: cell.y
+  };
+}
+
+function localizeSnapshotState(serverState, role) {
+  if (role !== "enemy") {
+    return serverState;
+  }
+
+  const transformSnakeState = (snakeState) => ({
+    ...snakeState,
+    snake: snakeState.snake.map((segment) => mirrorCell(segment, serverState.width)),
+    direction: mirrorDirection(snakeState.direction),
+    nextDirection: mirrorDirection(snakeState.nextDirection)
+  });
+
+  const mirroredStatus = serverState.status === "player_won"
+    ? "enemy_won"
+    : serverState.status === "enemy_won"
+      ? "player_won"
+      : serverState.status;
+
+  return {
+    ...serverState,
+    player: transformSnakeState(serverState.enemy),
+    enemy: transformSnakeState(serverState.player),
+    food: {
+      point: mirrorCell(serverState.food.point, serverState.width),
+      player: mirrorCell(serverState.food.enemy, serverState.width),
+      enemy: mirrorCell(serverState.food.player, serverState.width)
+    },
+    status: mirroredStatus,
+    foodRespawnSide: mirrorSide(serverState.foodRespawnSide)
+  };
 }
 
 function updateOnlineStatus(text) {
@@ -274,9 +372,13 @@ function updateOnlineControls() {
     pauseButton.disabled = true;
     mobilePauseButton.disabled = true;
     mobileResetButton.disabled = true;
+    turnLeftButton.disabled = true;
+    turnRightButton.disabled = true;
   } else {
     mobilePauseButton.disabled = activeOverlay !== null;
     mobileResetButton.disabled = activeOverlay !== null;
+    turnLeftButton.disabled = activeOverlay !== null;
+    turnRightButton.disabled = activeOverlay !== null;
   }
 }
 
@@ -295,30 +397,61 @@ async function postJson(path, payload) {
   return data;
 }
 
-function connectRoomStream(roomId, token, role) {
-  const source = new EventSource(`/api/rooms/${roomId}/stream?token=${encodeURIComponent(token)}`);
-  source.addEventListener("snapshot", (event) => {
-    const snapshot = JSON.parse(event.data);
-    const previousWidth = state.width;
-    const previousHeight = state.height;
-    state = snapshot.state;
-    if (state.width !== previousWidth || state.height !== previousHeight || cells.length === 0) {
-      createBoard();
-    }
-    render();
+function connectRoomSocket(roomId, token, role) {
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  const socket = new WebSocket(
+    `${protocol}://${window.location.host}/api/rooms/${roomId}/ws?token=${encodeURIComponent(token)}`
+  );
+
+  socket.addEventListener("open", () => {
     const youLabel = role === "player" ? "Host" : "Guest";
-    updateOnlineStatus(
-      `Online ${youLabel} in room ${roomId}. ${snapshot.playerConnected && snapshot.enemyConnected ? "Both players connected." : "Waiting for opponent..."}`
-    );
-    updateOnlineControls();
+    updateOnlineStatus(`Online ${youLabel} in room ${roomId}. Connecting...`);
   });
-  source.onerror = () => {
+
+  socket.addEventListener("message", (event) => {
+    let payload;
+    try {
+      payload = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+
+    if (payload.type === "snapshot") {
+      const previousWidth = state.width;
+      const previousHeight = state.height;
+      state = localizeSnapshotState(payload.state, role);
+      if (state.width !== previousWidth || state.height !== previousHeight || cells.length === 0) {
+        createBoard();
+      }
+      render();
+      const youLabel = role === "player" ? "Host" : "Guest";
+      updateOnlineStatus(
+        `Online ${youLabel} in room ${roomId}. ${payload.playerConnected && payload.enemyConnected ? "Both players connected." : "Waiting for opponent..."}`
+      );
+      updateOnlineControls();
+      return;
+    }
+
+    if (payload.type === "error") {
+      updateOnlineStatus(`Online issue: ${payload.error}`);
+    }
+  });
+
+  socket.addEventListener("close", () => {
     if (!onlineSession || onlineSession.roomId !== roomId) {
       return;
     }
+    if (onlineSession.closing) {
+      return;
+    }
     void disconnectOnlineSession(`Disconnected from room ${roomId}.`);
-  };
-  return source;
+  });
+
+  socket.addEventListener("error", () => {
+    updateOnlineStatus(`Socket error in room ${roomId}.`);
+  });
+
+  return socket;
 }
 
 function stopLocalTick() {
@@ -331,9 +464,10 @@ function stopLocalTick() {
 async function disconnectOnlineSession(message = "Offline (Local AI match)") {
   if (onlineSession) {
     const leavingSession = onlineSession;
+    leavingSession.closing = true;
     onlineSession = null;
-    if (leavingSession.stream) {
-      leavingSession.stream.close();
+    if (leavingSession.socket) {
+      leavingSession.socket.close();
     }
     try {
       await postJson(`/api/rooms/${leavingSession.roomId}/leave`, {
@@ -517,19 +651,49 @@ function render() {
   mobilePauseButton.textContent = pauseText;
 }
 
-async function sendOnlineDirection(direction) {
+function sendOnlineMessage(payload) {
   if (!onlineSession) {
     return;
   }
 
-  try {
-    await postJson(`/api/rooms/${onlineSession.roomId}/input`, {
-      token: onlineSession.token,
-      direction
-    });
-  } catch (error) {
-    updateOnlineStatus(`Input failed: ${error.message}`);
+  if (!onlineSession.socket || onlineSession.socket.readyState !== WebSocket.OPEN) {
+    updateOnlineStatus("Online connection is not ready yet.");
+    return;
   }
+
+  const nextPayload = { ...payload };
+  if (nextPayload.type === "input" && onlineSession.role === "enemy") {
+    nextPayload.direction = mirrorDirection(nextPayload.direction);
+  }
+
+  onlineSession.socket.send(JSON.stringify(nextPayload));
+}
+
+function sendOnlineDirection(direction) {
+  sendOnlineMessage({
+    type: "input",
+    direction
+  });
+}
+
+function directionForRelativeTurn(currentDirection, turn) {
+  if (turn === "left") {
+    if (currentDirection === "UP") return "LEFT";
+    if (currentDirection === "LEFT") return "DOWN";
+    if (currentDirection === "DOWN") return "RIGHT";
+    return "UP";
+  }
+
+  if (currentDirection === "UP") return "RIGHT";
+  if (currentDirection === "RIGHT") return "DOWN";
+  if (currentDirection === "DOWN") return "LEFT";
+  return "UP";
+}
+
+function handleRelativeTurn(turn) {
+  const basis = state.player.nextDirection || state.player.direction;
+  const nextDirection = directionForRelativeTurn(basis, turn);
+  handleDirection(nextDirection);
 }
 
 function handleDirection(direction) {
@@ -538,7 +702,7 @@ function handleDirection(direction) {
   }
 
   if (isOnlineActive()) {
-    void sendOnlineDirection(direction);
+    sendOnlineDirection(direction);
     return;
   }
 
@@ -589,11 +753,9 @@ function runStartOrRestart() {
     }
 
     const action = state.status === "ready" || state.status === "paused" ? "start" : "restart";
-    void postJson(`/api/rooms/${onlineSession.roomId}/action`, {
-      token: onlineSession.token,
+    sendOnlineMessage({
+      type: "action",
       action
-    }).catch((error) => {
-      updateOnlineStatus(`Action failed: ${error.message}`);
     });
     return;
   }
@@ -613,11 +775,9 @@ function runResetOnly() {
       return;
     }
 
-    void postJson(`/api/rooms/${onlineSession.roomId}/action`, {
-      token: onlineSession.token,
+    sendOnlineMessage({
+      type: "action",
       action: "restart"
-    }).catch((error) => {
-      updateOnlineStatus(`Action failed: ${error.message}`);
     });
     return;
   }
@@ -636,11 +796,9 @@ function runPauseToggle() {
     }
 
     const action = state.status === "ready" ? "start" : "pause";
-    void postJson(`/api/rooms/${onlineSession.roomId}/action`, {
-      token: onlineSession.token,
+    sendOnlineMessage({
+      type: "action",
       action
-    }).catch((error) => {
-      updateOnlineStatus(`Action failed: ${error.message}`);
     });
     return;
   }
@@ -718,6 +876,11 @@ menuToggleButton.addEventListener("click", () => {
   setMenuOpen(!menuOpen);
 });
 
+controlsToggleButton.addEventListener("click", () => {
+  setMenuOpen(false);
+  setActiveOverlay(activeOverlay === "controls" ? null : "controls");
+});
+
 menuBackdrop.addEventListener("click", () => {
   setMenuOpen(false);
 });
@@ -740,12 +903,13 @@ onlineHostButton.addEventListener("click", async () => {
     const created = await postJson("/api/rooms", {
       settings: buildGameOptions()
     });
-    const stream = connectRoomStream(created.roomId, created.token, created.role);
+    const socket = connectRoomSocket(created.roomId, created.token, created.role);
     onlineSession = {
       roomId: created.roomId,
       role: created.role,
       token: created.token,
-      stream
+      socket,
+      closing: false
     };
     updateOnlineStatus(`Hosting room ${created.roomId}. Share this code and press Pause to start when ready.`);
     updateOnlineControls();
@@ -770,12 +934,13 @@ onlineJoinButton.addEventListener("click", async () => {
   try {
     stopLocalTick();
     const joined = await postJson(`/api/rooms/${roomId}/join`, {});
-    const stream = connectRoomStream(joined.roomId, joined.token, joined.role);
+    const socket = connectRoomSocket(joined.roomId, joined.token, joined.role);
     onlineSession = {
       roomId: joined.roomId,
       role: joined.role,
       token: joined.token,
-      stream
+      socket,
+      closing: false
     };
     updateOnlineStatus(`Joined room ${joined.roomId} as guest.`);
     updateOnlineControls();
@@ -807,6 +972,10 @@ settingsCloseButton.addEventListener("click", () => {
 });
 
 rulesCloseButton.addEventListener("click", () => {
+  setActiveOverlay(null);
+});
+
+controlsCloseButton.addEventListener("click", () => {
   setActiveOverlay(null);
 });
 
@@ -855,14 +1024,37 @@ rulesColorblindToggle.addEventListener("change", () => {
   applyColorblindMode(rulesColorblindToggle.checked);
 });
 
+controlSchemeDpadInput.addEventListener("change", () => {
+  if (controlSchemeDpadInput.checked) {
+    applyControlScheme("dpad");
+  }
+});
+
+controlSchemeRelativeInput.addEventListener("change", () => {
+  if (controlSchemeRelativeInput.checked) {
+    applyControlScheme("relative");
+  }
+});
+
 for (const button of controlButtons) {
   button.addEventListener("click", () => {
     handleDirection(button.dataset.direction);
   });
 }
 
+turnLeftButton.addEventListener("click", () => {
+  handleRelativeTurn("left");
+});
+
+turnRightButton.addEventListener("click", () => {
+  handleRelativeTurn("right");
+});
+
 applyPreset("easy");
 applyColorblindMode(false);
+applyControlScheme("dpad");
+menuToggleButton.textContent = "\u2630";
+startButton.textContent = "\u21BA";
 createBoard();
 setMenuOpen(false);
 setActiveOverlay(null);
