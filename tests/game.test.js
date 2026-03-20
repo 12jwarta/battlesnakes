@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 import {
+  advanceTutorialPrompt,
   advanceGame,
   createGameState,
   DAMAGE_STUN_TICKS,
@@ -36,13 +37,16 @@ test("snake moves one cell in the current direction", () => {
   assert.equal(state.player.snake.length, 1);
 });
 
-test("default difficulty is easy with current behavior", () => {
+test("default difficulty is beginner with more forgiving enemy behavior than easy", () => {
   const state = createGameState({ rng: () => 0 });
 
   assert.equal(state.difficulty, DEFAULT_DIFFICULTY);
+  assert.equal(DEFAULT_DIFFICULTY, "beginner");
   assert.equal(DIFFICULTY_SETTINGS.hard.errorRate, 0);
   assert.equal(DIFFICULTY_SETTINGS.medium.errorRate, 0.07);
+  assert.equal(DIFFICULTY_SETTINGS.beginner.errorRate, 0.18);
   assert.equal(DIFFICULTY_SETTINGS.easy.errorRate, 0.14);
+  assert.ok(DIFFICULTY_SETTINGS.beginner.errorRate > DIFFICULTY_SETTINGS.easy.errorRate);
   assert.equal(DIFFICULTY_SETTINGS.easy.earlyErrorBias, 0.8);
 });
 
@@ -55,6 +59,627 @@ test("starting food is directly left or right of center", () => {
   assert.equal(state.food.point.y, centerY);
   assert.equal(state.food.player, null);
   assert.equal(state.food.enemy, null);
+});
+
+test("beginner mode initializes with two vertical wall columns between zones", () => {
+  const state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  const centerX = 8;
+
+  assert.ok(Array.isArray(state.walls));
+  assert.equal(state.walls.length, 34);
+  assert.ok(state.walls.every((cell) => cell.x === centerX - 1 || cell.x === centerX + 1));
+  assert.ok(state.food.point);
+  assert.ok(!state.walls.some((wallCell) => wallCell.x === state.food.point.x && wallCell.y === state.food.point.y));
+});
+
+test("beginner mode starts paused with scripted coordinates and first point", () => {
+  const state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+
+  assert.equal(state.status, "paused");
+  assert.equal(state.player.snake.length, 3);
+  assert.equal(state.enemy.snake.length, 3);
+  assert.deepEqual(state.player.snake[0], { x: 3, y: 13 });
+  assert.deepEqual(state.enemy.snake[0], { x: 13, y: 13 });
+  assert.deepEqual(state.food.point, { x: 3, y: 3 });
+  assert.equal(state.beginnerTutorial.phase, "await_start");
+  assert.ok(state.beginnerTutorial.enemyTarget);
+  const enemyTargetXFromLeft = state.beginnerTutorial.enemyTarget.x + 1;
+  const enemyTargetYFromBottom = state.height - state.beginnerTutorial.enemyTarget.y;
+  assert.ok(enemyTargetXFromLeft > 10);
+  assert.ok(enemyTargetYFromBottom > 10);
+});
+
+test("beginner first direction starts upward regardless of input", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = queueDirection(state, "LEFT");
+  state = advanceGame(state, () => 0.5);
+
+  assert.equal(state.status, "running");
+  assert.equal(state.beginnerTutorial.phase, "to_first_food");
+  assert.deepEqual(state.player.snake[0], { x: 3, y: 12 });
+  assert.notDeepEqual(state.enemy.snake[0], { x: 13, y: 13 });
+});
+
+test("beginner enemy target respawns in far enemy zone when collected before player point", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    beginnerTutorial: {
+      phase: "to_first_food",
+      enemyTarget: { x: 13, y: 12 }
+    },
+    player: {
+      ...state.player,
+      snake: [{ x: 3, y: 13 }, { x: 3, y: 13 }, { x: 3, y: 13 }],
+      direction: "UP",
+      nextDirection: "UP",
+      stunTicks: 99
+    },
+    enemy: {
+      ...state.enemy,
+      snake: [{ x: 13, y: 13 }, { x: 13, y: 13 }, { x: 13, y: 13 }],
+      direction: "UP",
+      nextDirection: "UP",
+      stunTicks: 0
+    },
+    food: { point: { x: 3, y: 3 }, player: null, enemy: null }
+  };
+
+  state = advanceGame(state, () => 0);
+
+  assert.ok(state.beginnerTutorial.enemyTarget);
+  assert.notDeepEqual(state.beginnerTutorial.enemyTarget, { x: 13, y: 12 });
+  const enemyTargetXFromLeft = state.beginnerTutorial.enemyTarget.x + 1;
+  const enemyTargetYFromBottom = state.height - state.beginnerTutorial.enemyTarget.y;
+  assert.ok(enemyTargetXFromLeft > 10);
+  assert.ok(enemyTargetYFromBottom > 10);
+  assert.equal(state.player.score, 0);
+  assert.equal(state.enemy.score, 0);
+});
+
+test("beginner intro damage does not reduce points or body length", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    beginnerTutorial: { phase: "to_first_food" },
+    player: {
+      ...state.player,
+      score: 2,
+      snake: [{ x: 3, y: 0 }, { x: 3, y: 1 }, { x: 3, y: 2 }],
+      direction: "UP",
+      nextDirection: "UP",
+      stunTicks: 0,
+      damageStreak: 2
+    },
+    enemy: {
+      ...state.enemy,
+      score: 2,
+      snake: [{ x: 13, y: 13 }, { x: 13, y: 13 }, { x: 13, y: 13 }],
+      direction: "LEFT",
+      nextDirection: "LEFT",
+      stunTicks: 0,
+      damageStreak: 0
+    },
+    food: { point: { x: 3, y: 3 }, player: null, enemy: null }
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.equal(state.player.score, 2);
+  assert.equal(state.player.snake.length, 3);
+  assert.equal(state.player.damageStreak, 2);
+  assert.equal(state.status, "running");
+});
+
+test("beginner pauses and advances tutorial after first point is collected", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    beginnerTutorial: { phase: "to_first_food" },
+    player: {
+      ...state.player,
+      score: 0,
+      snake: [{ x: 3, y: 4 }, { x: 3, y: 5 }, { x: 3, y: 6 }],
+      direction: "UP",
+      nextDirection: "UP",
+      stunTicks: 0,
+      damageStreak: 0
+    },
+    enemy: {
+      ...state.enemy,
+      score: 0,
+      snake: [{ x: 13, y: 13 }, { x: 13, y: 13 }, { x: 13, y: 13 }],
+      direction: "LEFT",
+      nextDirection: "LEFT",
+      stunTicks: 0,
+      damageStreak: 0
+    },
+    food: { point: { x: 3, y: 3 }, player: null, enemy: null }
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.equal(state.player.score, 1);
+  assert.equal(state.beginnerTutorial.phase, "after_first_food");
+  assert.equal(state.status, "paused");
+  assert.deepEqual(state.food.point, { x: 13, y: 13 });
+  assert.deepEqual(state.food.enemy, { x: 3, y: 13 });
+  assert.equal(state.food.player, null);
+  assert.ok(state.beginnerTutorial.enemyTarget);
+  assert.notDeepEqual(state.beginnerTutorial.enemyTarget, { x: 13, y: 13 });
+  const targetXFromLeft = state.beginnerTutorial.enemyTarget.x + 1;
+  const targetYFromBottom = state.height - state.beginnerTutorial.enemyTarget.y;
+  assert.ok(targetXFromLeft > 10);
+  assert.ok(targetYFromBottom < 8);
+});
+
+test("beginner resumes from post-point pause on any direction input", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "paused",
+    beginnerTutorial: {
+      phase: "after_first_food",
+      enemyTarget: { x: 15, y: 15 },
+      avoidPointCell: { x: 13, y: 13 }
+    },
+    food: { point: { x: 13, y: 13 }, player: null, enemy: { x: 3, y: 13 } }
+  };
+
+  state = queueDirection(state, "LEFT");
+  assert.equal(state.status, "paused");
+  assert.equal(state.beginnerTutorial.phase, "after_first_food");
+
+  state = advanceTutorialPrompt(state, () => 0);
+  assert.equal(state.status, "running");
+  assert.equal(state.beginnerTutorial.phase, "to_enemy_food");
+  assert.ok(state.beginnerTutorial.enemyTarget);
+});
+
+test("beginner enemy prefers invisible target and avoids scripted true-point cell", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    beginnerTutorial: {
+      phase: "to_enemy_food",
+      enemyTarget: { x: 12, y: 12 },
+      avoidPointCell: { x: 13, y: 13 }
+    },
+    player: {
+      ...state.player,
+      snake: [{ x: 3, y: 13 }, { x: 3, y: 13 }, { x: 3, y: 13 }],
+      direction: "UP",
+      nextDirection: "UP",
+      stunTicks: 99
+    },
+    enemy: {
+      ...state.enemy,
+      snake: [{ x: 13, y: 12 }, { x: 14, y: 12 }, { x: 15, y: 12 }],
+      direction: "UP",
+      nextDirection: "UP",
+      stunTicks: 0
+    },
+    food: { point: { x: 13, y: 13 }, player: null, enemy: { x: 3, y: 13 } }
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.notDeepEqual(state.enemy.snake[0], { x: 13, y: 13 });
+});
+
+test("beginner pauses again when player collects enemy-color block objective", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    beginnerTutorial: {
+      phase: "to_enemy_food",
+      enemyTarget: { x: 12, y: 12 },
+      avoidPointCell: { x: 13, y: 13 }
+    },
+    player: {
+      ...state.player,
+      score: 2,
+      snake: [{ x: 2, y: 13 }, { x: 1, y: 13 }, { x: 0, y: 13 }],
+      direction: "RIGHT",
+      nextDirection: "RIGHT",
+      stunTicks: 0
+    },
+    enemy: {
+      ...state.enemy,
+      score: 2,
+      snake: [{ x: 13, y: 12 }, { x: 14, y: 12 }, { x: 15, y: 12 }],
+      direction: "UP",
+      nextDirection: "UP",
+      stunTicks: 0
+    },
+    food: { point: { x: 13, y: 13 }, player: null, enemy: { x: 3, y: 13 } }
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.equal(state.status, "paused");
+  assert.equal(state.beginnerTutorial.phase, "after_enemy_food");
+});
+
+test("beginner resumes from enemy-food pause and clears invisible targets", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "paused",
+    beginnerTutorial: {
+      phase: "after_enemy_food",
+      enemyTarget: { x: 12, y: 12 },
+      avoidPointCell: { x: 13, y: 13 }
+    },
+    food: { point: { x: 13, y: 13 }, player: null, enemy: null }
+  };
+
+  state = advanceTutorialPrompt(state, () => 0);
+
+  assert.equal(state.status, "running");
+  assert.equal(state.beginnerTutorial.phase, "wait_enemy_point");
+  assert.equal(state.beginnerTutorial.enemyTarget, null);
+  assert.equal(state.beginnerTutorial.avoidPointCell, null);
+});
+
+test("beginner pauses when enemy collects scripted point block after wait phase", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    beginnerTutorial: {
+      phase: "wait_enemy_point",
+      enemyTarget: null,
+      avoidPointCell: null
+    },
+    player: {
+      ...state.player,
+      snake: [{ x: 3, y: 13 }, { x: 3, y: 13 }, { x: 3, y: 13 }],
+      direction: "UP",
+      nextDirection: "UP",
+      stunTicks: 99
+    },
+    enemy: {
+      ...state.enemy,
+      snake: [{ x: 13, y: 12 }, { x: 14, y: 12 }, { x: 15, y: 12 }],
+      direction: "DOWN",
+      nextDirection: "DOWN",
+      stunTicks: 0,
+      score: 0
+    },
+    food: { point: { x: 13, y: 13 }, player: null, enemy: null }
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.equal(state.status, "paused");
+  assert.equal(state.beginnerTutorial.phase, "after_enemy_point");
+  assert.equal(state.enemy.score, 0);
+  assert.ok(state.food.point);
+  assert.ok(state.food.player);
+  assert.ok(state.food.enemy);
+  const pointXFromLeft = state.food.point.x + 1;
+  const pointYFromBottom = state.height - state.food.point.y;
+  assert.ok(pointXFromLeft > 10);
+  assert.ok(pointYFromBottom > 10);
+  const playerFoodXFromLeft = state.food.player.x + 1;
+  const enemyFoodXFromLeft = state.food.enemy.x + 1;
+  assert.ok(playerFoodXFromLeft < 8);
+  assert.ok(enemyFoodXFromLeft < 8);
+  assert.equal(state.beginnerTutorial.enemyTarget, null);
+});
+
+test("beginner resumes from enemy-point pause on any direction and enters practice phase", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "paused",
+    beginnerTutorial: {
+      phase: "after_enemy_point",
+      enemyTarget: { x: 12, y: 5 }
+    },
+    food: { point: { x: 4, y: 4 }, player: { x: 12, y: 4 }, enemy: null }
+  };
+
+  state = advanceTutorialPrompt(state, () => 0);
+
+  assert.equal(state.status, "running");
+  assert.equal(state.beginnerTutorial.phase, "to_practice_points");
+  assert.equal(state.beginnerTutorial.practicePointCount, 0);
+});
+
+test("practice spawn on player side creates enemy invisible target on enemy side", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    beginnerTutorial: {
+      phase: "to_practice_points",
+      practicePointCount: 1,
+      enemyTarget: null
+    },
+    player: {
+      ...state.player,
+      snake: [{ x: 3, y: 13 }, { x: 2, y: 13 }, { x: 1, y: 13 }],
+      direction: "UP",
+      nextDirection: "UP",
+      stunTicks: 99
+    },
+    enemy: {
+      ...state.enemy,
+      snake: [{ x: 13, y: 13 }, { x: 14, y: 13 }, { x: 15, y: 13 }],
+      direction: "LEFT",
+      nextDirection: "LEFT",
+      stunTicks: 99
+    },
+    food: { point: null, player: null, enemy: null },
+    foodSpawnTimer: 0,
+    foodRespawnSide: "left"
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.ok(state.food.point);
+  const pointXFromLeft = state.food.point.x + 1;
+  assert.ok(pointXFromLeft < 9);
+  assert.equal(state.food.player, null);
+  assert.equal(state.food.enemy, null);
+  assert.ok(state.beginnerTutorial.enemyTarget);
+  const targetXFromLeft = state.beginnerTutorial.enemyTarget.x + 1;
+  assert.ok(targetXFromLeft > 10);
+});
+
+test("practice spawn on enemy side places both snake foods on player side", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    beginnerTutorial: {
+      phase: "to_practice_points",
+      practicePointCount: 1,
+      enemyTarget: { x: 12, y: 12 }
+    },
+    player: {
+      ...state.player,
+      snake: [{ x: 3, y: 13 }, { x: 2, y: 13 }, { x: 1, y: 13 }],
+      direction: "UP",
+      nextDirection: "UP",
+      stunTicks: 99
+    },
+    enemy: {
+      ...state.enemy,
+      snake: [{ x: 13, y: 13 }, { x: 14, y: 13 }, { x: 15, y: 13 }],
+      direction: "LEFT",
+      nextDirection: "LEFT",
+      stunTicks: 99
+    },
+    food: { point: null, player: null, enemy: null },
+    foodSpawnTimer: 0,
+    foodRespawnSide: "right"
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.ok(state.food.point);
+  assert.ok(state.food.player);
+  assert.ok(state.food.enemy);
+  const pointXFromLeft = state.food.point.x + 1;
+  const playerFoodXFromLeft = state.food.player.x + 1;
+  const enemyFoodXFromLeft = state.food.enemy.x + 1;
+  assert.ok(pointXFromLeft > 9);
+  assert.ok(playerFoodXFromLeft < 9);
+  assert.ok(enemyFoodXFromLeft < 9);
+  assert.equal(state.beginnerTutorial.enemyTarget, null);
+});
+
+test("beginner pauses after fourth practice point is collected", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    beginnerTutorial: {
+      phase: "to_practice_points",
+      practicePointCount: 3,
+      enemyTarget: { x: 12, y: 12 }
+    },
+    player: {
+      ...state.player,
+      score: 2,
+      snake: [{ x: 3, y: 4 }, { x: 2, y: 4 }, { x: 1, y: 4 }],
+      direction: "UP",
+      nextDirection: "UP",
+      stunTicks: 0
+    },
+    enemy: {
+      ...state.enemy,
+      score: 0,
+      snake: [{ x: 13, y: 12 }, { x: 14, y: 12 }, { x: 15, y: 12 }],
+      direction: "LEFT",
+      nextDirection: "LEFT",
+      stunTicks: 0
+    },
+    food: { point: { x: 3, y: 3 }, player: null, enemy: null }
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.equal(state.status, "paused");
+  assert.equal(state.beginnerTutorial.phase, "after_practice_points");
+  assert.equal(state.beginnerTutorial.practicePointCount, 4);
+});
+
+test("beginner barrier step starts running on direction from post-practice pause", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "paused",
+    beginnerTutorial: {
+      phase: "after_practice_points",
+      practicePointCount: 4
+    }
+  };
+
+  state = advanceTutorialPrompt(state, () => 0);
+
+  assert.equal(state.status, "running");
+  assert.equal(state.beginnerTutorial.phase, "break_barrier");
+});
+
+test("beginner barrier crash triggers stun flow without losing score or body", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    beginnerTutorial: {
+      phase: "break_barrier",
+      practicePointCount: 4
+    },
+    player: {
+      ...state.player,
+      score: 3,
+      snake: [{ x: 6, y: 8 }, { x: 5, y: 8 }, { x: 4, y: 8 }],
+      direction: "RIGHT",
+      nextDirection: "RIGHT",
+      stunTicks: 0
+    },
+    enemy: {
+      ...state.enemy,
+      snake: [{ x: 13, y: 13 }, { x: 14, y: 13 }, { x: 15, y: 13 }],
+      direction: "LEFT",
+      nextDirection: "LEFT",
+      stunTicks: 99
+    },
+    food: { point: { x: 3, y: 3 }, player: null, enemy: null }
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.equal(state.beginnerTutorial.phase, "wall_break_stun");
+  assert.equal(state.player.score, 3);
+  assert.equal(state.player.snake.length, 3);
+  assert.equal(state.status, "running");
+  assert.ok(state.player.stunTicks > 0);
+  assert.equal(state.food.point, null);
+  assert.equal(state.food.player, null);
+  assert.equal(state.food.enemy, null);
+});
+
+test("beginner break-barrier phase keeps all food cleared until wall break occurs", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    beginnerTutorial: {
+      phase: "break_barrier",
+      practicePointCount: 4
+    },
+    player: {
+      ...state.player,
+      score: 3,
+      snake: [{ x: 3, y: 8 }, { x: 2, y: 8 }, { x: 1, y: 8 }],
+      direction: "LEFT",
+      nextDirection: "LEFT",
+      stunTicks: 0
+    },
+    enemy: {
+      ...state.enemy,
+      snake: [{ x: 13, y: 13 }, { x: 14, y: 13 }, { x: 15, y: 13 }],
+      direction: "LEFT",
+      nextDirection: "LEFT",
+      stunTicks: 99
+    },
+    food: { point: { x: 3, y: 3 }, player: { x: 4, y: 4 }, enemy: { x: 5, y: 5 } }
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.equal(state.beginnerTutorial.phase, "break_barrier");
+  assert.equal(state.status, "running");
+  assert.equal(state.food.point, null);
+  assert.equal(state.food.player, null);
+  assert.equal(state.food.enemy, null);
+});
+
+test("beginner removes barriers and pauses after wall-break stun resolves", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    beginnerTutorial: {
+      phase: "wall_break_stun",
+      practicePointCount: 4
+    },
+    player: {
+      ...state.player,
+      snake: [{ x: 6, y: 8 }, { x: 5, y: 8 }, { x: 4, y: 8 }],
+      direction: "RIGHT",
+      nextDirection: "RIGHT",
+      stunTicks: 1
+    },
+    enemy: {
+      ...state.enemy,
+      snake: [{ x: 13, y: 13 }, { x: 14, y: 13 }, { x: 15, y: 13 }],
+      direction: "LEFT",
+      nextDirection: "LEFT",
+      stunTicks: 99
+    },
+    food: { point: { x: 3, y: 3 }, player: null, enemy: null }
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.equal(state.status, "paused");
+  assert.equal(state.beginnerTutorial.phase, "after_barrier_removed");
+  assert.deepEqual(state.walls, []);
+});
+
+test("beginner explanation pause seeds final handoff foods while staying paused", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "paused",
+    walls: [],
+    beginnerTutorial: {
+      phase: "after_barrier_removed",
+      practicePointCount: 4
+    }
+  };
+
+  state = advanceTutorialPrompt(state, () => 0);
+
+  assert.equal(state.status, "paused");
+  assert.equal(state.beginnerTutorial.phase, "final_ready_prompt");
+  assert.ok(state.food.point);
+  const pointXFromLeft = state.food.point.x + 1;
+  assert.ok(pointXFromLeft < 9);
+  assert.ok(state.food.player);
+  assert.ok(state.food.enemy);
+});
+
+test("beginner final prompt starts normal play and marks tutorial complete", () => {
+  let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "paused",
+    walls: [],
+    beginnerTutorial: {
+      phase: "final_ready_prompt",
+      practicePointCount: 4
+    },
+    food: { point: { x: 3, y: 3 }, player: { x: 10, y: 10 }, enemy: { x: 11, y: 11 } }
+  };
+
+  state = advanceTutorialPrompt(state, () => 0);
+
+  assert.equal(state.status, "running");
+  assert.equal(state.beginnerTutorial.phase, "complete");
+  assert.equal(state.difficulty, "easy");
+  assert.equal(state.enemyErrorRate, DIFFICULTY_SETTINGS.easy.errorRate);
 });
 
 test("snakes start closer to board edges", () => {

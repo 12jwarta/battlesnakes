@@ -1,4 +1,5 @@
 import {
+  advanceTutorialPrompt,
   advanceGame,
   createGameState,
   queueDirection,
@@ -9,6 +10,15 @@ import {
 } from "./game.js";
 
 const PRESETS = {
+  beginner: {
+    speedMs: 190,
+    enemyErrorEnabled: true,
+    enemyErrorRate: 0.18,
+    startingPlayerPoints: 0,
+    startingEnemyPoints: 0,
+    startingPlayerSize: 3,
+    startingEnemySize: 3
+  },
   easy: {
     speedMs: 170,
     enemyErrorEnabled: true,
@@ -39,6 +49,10 @@ const PRESETS = {
 };
 
 const boardElement = document.querySelector("#board");
+const pointsBarElement = document.querySelector("#points-bar");
+const beginnerDialogElement = document.querySelector("#beginner-dialog");
+const beginnerDialogTitleElement = document.querySelector("#beginner-dialog-title");
+const beginnerDialogTextElement = document.querySelector("#beginner-dialog-text");
 const playerMiniSnakeElement = document.querySelector("#player-mini-snake");
 const enemyMiniSnakeElement = document.querySelector("#enemy-mini-snake");
 const playerMiniScoreElement = document.querySelector("#player-mini-score");
@@ -85,8 +99,8 @@ const controlSchemeRelativeInput = document.querySelector("#control-scheme-relat
 const turnLeftButton = document.querySelector("#turn-left-button");
 const turnRightButton = document.querySelector("#turn-right-button");
 
-let settings = { ...PRESETS.easy };
-let selectedDifficulty = "easy";
+let settings = { ...PRESETS.beginner };
+let selectedDifficulty = "beginner";
 let activeOverlay = null;
 let suppressSettingEvents = false;
 let state = createGameState(buildGameOptions());
@@ -352,7 +366,14 @@ function localizeSnapshotState(serverState, role) {
       enemy: mirrorCell(serverState.food.player, serverState.width)
     },
     status: mirroredStatus,
-    foodRespawnSide: mirrorSide(serverState.foodRespawnSide)
+    foodRespawnSide: mirrorSide(serverState.foodRespawnSide),
+    walls: (serverState.walls || []).map((wallCell) => mirrorCell(wallCell, serverState.width)),
+    beginnerTutorial: serverState.beginnerTutorial
+      ? {
+        ...serverState.beginnerTutorial,
+        enemyTarget: mirrorCell(serverState.beginnerTutorial.enemyTarget, serverState.width)
+      }
+      : null
   };
 }
 
@@ -497,10 +518,16 @@ function statusMessage(currentState) {
   }
 
   if (currentState.status === "player_won") {
+    if (currentState.difficulty === "beginner" && currentState.beginnerTutorial?.phase === "complete") {
+      return "Well done! You won this beginner run. Try Easy mode to sharpen up, then challenge your friends in Online mode.";
+    }
     return `You won by ${resultDetails.playerWonBy}. ${difficultyEncouragement(currentState)} Press Start / Restart or R to play again.`;
   }
 
   if (currentState.status === "enemy_won") {
+    if (currentState.difficulty === "beginner" && currentState.beginnerTutorial?.phase === "complete") {
+      return "Nice try. Keep training in Easy mode, then challenge your friends in Online mode when you are ready.";
+    }
     return `You lost by ${resultDetails.enemyWonBy}. ${difficultyEncouragement(currentState)} Press Start / Restart or R to play again.`;
   }
 
@@ -509,6 +536,64 @@ function statusMessage(currentState) {
   }
 
   return `${difficultyLabel} mode. Race to ${WIN_SCORE}. Damage removes 1 food; lose by 3-hit streak or body < 1.`;
+}
+
+function isBeginnerDialogActive(currentState) {
+  if (!currentState || currentState.difficulty !== "beginner" || !currentState.beginnerTutorial) {
+    return false;
+  }
+
+  return currentState.beginnerTutorial.phase !== "complete";
+}
+
+function updateBeginnerDialog(currentState) {
+  if (!beginnerDialogElement || !pointsBarElement) {
+    return;
+  }
+
+  const continueHint = isMobileLayout()
+    ? "(tap Pause/Resume to continue)"
+    : "(press Space to continue)";
+  const active = isBeginnerDialogActive(currentState);
+  if (active) {
+    const phase = currentState.beginnerTutorial?.phase;
+    let runningText;
+    if (phase === "await_start") {
+      runningText = "Welcome to Battlesnakes! You control the snake on the left. Use the controls to navigate to the point block at the top of your zone (press any direction to start your snake upward)";
+    } else if (phase === "to_first_food") {
+      runningText = "Move upward and collect the point block at the top of your zone.";
+    } else if (phase === "after_first_food") {
+      runningText = `Great, you collected a point block which gives you +1 point and +1 body length. Whenever you collect a point block anywhere, the next point block will generate somewhere in your opponents zone. As there is a wall preventing us from getting there, we are strictly on defense for now. At the other end of your zone is an enemy color block. Navigate back down to get it. ${continueHint}`;
+    } else if (phase === "to_enemy_food") {
+      runningText = "Navigate back down to collect the enemy-color block in your zone.";
+    } else if (phase === "after_enemy_food") {
+      runningText = `Collecting enemy-colored blocks will decrease your enemy's points by one, denying them their next point, but not next body segment. Typically your color blocks will spawn too, and they work the same for your enemy. Collecting a point block will regenerate all other blocks, collecting snake blocks will not. This means you need to collect snake blocks before someone collects the point block. Wait until you enemy collects the point block then get ready to get back on offense. ${continueHint}`;
+    } else if (phase === "wait_enemy_point") {
+      runningText = "Watch the enemy collect their point block, then prepare to go back on offense.";
+    } else if (phase === "after_enemy_point") {
+      runningText = `Looks like you're getting the hang of it. If your enemy denied you this point, dont worry; if your points are ever less than your body length, collecting your own color snake blocks will gain you a point back, and keep the enemy from denying you of the current point. In general, it's a good idea to collect any block, but prioritize the point block if you can. Try to play a few more points ${continueHint}`;
+    } else if (phase === "to_practice_points") {
+      runningText = "You're on offense now. Try to play a few more points.";
+    } else if (phase === "after_practice_points") {
+      runningText = `Okay, let's get rid of this barrier and open the game up! Crash into the wall on the right to break it down. ${continueHint}`;
+    } else if (phase === "break_barrier" || phase === "wall_break_stun") {
+      runningText = "Crash into the right containment wall to break it down.";
+    } else if (phase === "after_barrier_removed") {
+      runningText = `When your snake hits a wall or the body of the other snake, it loses one point and loses one body segment. After that the snake is stunned for a short while. If snakes collide head on, both are damaged and moved one tile in a random direction. A snake taking damage three times in a row will instantly lose, and a snake will also lose if it falls to zero body length. ${continueHint}`;
+    } else if (phase === "final_ready_prompt") {
+      runningText = `It's up to you now! Play the rest of this game out and see how you do! ${continueHint}`;
+    } else {
+      runningText = "Tutorial sequence continuing. Follow the next prompt to proceed.";
+    }
+    beginnerDialogTitleElement.textContent = "Beginner Mode Tutorial";
+    beginnerDialogTextElement.textContent = runningText;
+    beginnerDialogElement.removeAttribute("hidden");
+    pointsBarElement.setAttribute("hidden", "");
+    return;
+  }
+
+  beginnerDialogElement.setAttribute("hidden", "");
+  pointsBarElement.removeAttribute("hidden");
 }
 
 function getResultDetails(currentState) {
@@ -577,6 +662,12 @@ function render() {
     cells[index].className = baseCellClasses[index];
   }
 
+  if (state.walls) {
+    for (const wallCell of state.walls) {
+      cells[toIndex(wallCell.x, wallCell.y)].classList.add("cell--wall");
+    }
+  }
+
   if (state.food.point) {
     cells[toIndex(state.food.point.x, state.food.point.y)].classList.add("cell--food");
   }
@@ -642,6 +733,7 @@ function render() {
 
   playerMiniScoreElement.textContent = String(state.player.score);
   enemyMiniScoreElement.textContent = String(state.enemy.score);
+  updateBeginnerDialog(state);
   statusElement.textContent = statusMessage(state);
   const paused = state.status === "paused";
   pauseButton.textContent = paused ? "▶" : "⏸";
@@ -760,6 +852,11 @@ function runStartOrRestart() {
     return;
   }
 
+  if (state.beginnerTutorial?.phase === "await_start") {
+    resetGame();
+    return;
+  }
+
   resetGame();
   state = startGame(state);
   render();
@@ -800,6 +897,28 @@ function runPauseToggle() {
       type: "action",
       action
     });
+    return;
+  }
+
+  if (state.beginnerTutorial?.phase === "await_start") {
+    return;
+  }
+
+  const pauseAdvancePhases = new Set([
+    "after_first_food",
+    "after_enemy_food",
+    "after_enemy_point",
+    "after_practice_points",
+    "after_barrier_removed",
+    "final_ready_prompt"
+  ]);
+  if (state.status === "paused" && pauseAdvancePhases.has(state.beginnerTutorial?.phase)) {
+    const previousPhase = state.beginnerTutorial?.phase;
+    state = advanceTutorialPrompt(state);
+    if (previousPhase === "final_ready_prompt" && state.beginnerTutorial?.phase === "complete") {
+      applyPreset("easy");
+    }
+    render();
     return;
   }
 
@@ -848,8 +967,7 @@ document.addEventListener("keydown", (event) => {
 
   if (key === " ") {
     event.preventDefault();
-    state = state.status === "ready" ? startGame(state) : togglePause(state);
-    render();
+    runPauseToggle();
     return;
   }
 
@@ -1050,7 +1168,7 @@ turnRightButton.addEventListener("click", () => {
   handleRelativeTurn("right");
 });
 
-applyPreset("easy");
+applyPreset("beginner");
 applyColorblindMode(false);
 applyControlScheme("dpad");
 menuToggleButton.textContent = "\u2630";

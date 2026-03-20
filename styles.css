@@ -491,6 +491,32 @@ button:hover {
   gap: 8px;
 }
 
+.beginner-dialog {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: #f6f2e8;
+  display: grid;
+  gap: 6px;
+}
+
+.beginner-dialog h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.beginner-dialog p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.beginner-dialog[hidden] {
+  display: none !important;
+}
+
 .points-row {
   display: grid;
   grid-template-columns: 52px 1fr auto;
@@ -577,6 +603,10 @@ button:hover {
 
 .cell--right-zone {
   background: var(--right-zone-bg);
+}
+
+.cell--wall {
+  background: #6c645a;
 }
 
 .cell--snake {

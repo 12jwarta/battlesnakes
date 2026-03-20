@@ -39,7 +39,12 @@
           </section>
         </aside>
 
-        <div class="points-bar" aria-label="Snake points bar">
+        <div id="beginner-dialog" class="beginner-dialog" role="status" aria-live="polite" hidden>
+          <h2 id="beginner-dialog-title">Beginner Mode</h2>
+          <p id="beginner-dialog-text">Scripted tutorial sequence in progress.</p>
+        </div>
+
+        <div id="points-bar" class="points-bar" aria-label="Snake points bar">
           <div class="points-row">
             <span class="points-label">You</span>
             <div id="player-mini-snake" class="mini-snake mini-snake--player"></div>
@@ -102,7 +107,8 @@
             <div class="settings-grid">
               <label for="difficulty-setting">Difficulty</label>
               <select id="difficulty-setting">
-                <option value="easy" selected>Easy</option>
+                <option value="beginner" selected>Beginner</option>
+                <option value="easy">Easy</option>
                 <option value="medium">Medium</option>
                 <option value="hard">Hard</option>
                 <option value="custom">Custom</option>
