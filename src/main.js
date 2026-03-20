@@ -539,7 +539,7 @@ function statusMessage(currentState) {
 }
 
 function isBeginnerDialogActive(currentState) {
-  if (!currentState || currentState.difficulty !== "beginner" || !currentState.beginnerTutorial) {
+  if (!currentState || !currentState.beginnerTutorial) {
     return false;
   }
 

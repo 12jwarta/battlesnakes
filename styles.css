@@ -491,6 +491,10 @@ button:hover {
   gap: 8px;
 }
 
+.points-bar[hidden] {
+  display: none !important;
+}
+
 .beginner-dialog {
   margin: 0 0 12px;
   padding: 10px 12px;
