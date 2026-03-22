@@ -913,11 +913,7 @@ function runPauseToggle() {
     "final_ready_prompt"
   ]);
   if (state.status === "paused" && pauseAdvancePhases.has(state.beginnerTutorial?.phase)) {
-    const previousPhase = state.beginnerTutorial?.phase;
     state = advanceTutorialPrompt(state);
-    if (previousPhase === "final_ready_prompt" && state.beginnerTutorial?.phase === "complete") {
-      applyPreset("easy");
-    }
     render();
     return;
   }

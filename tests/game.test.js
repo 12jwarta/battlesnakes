@@ -678,8 +678,8 @@ test("beginner final prompt starts normal play and marks tutorial complete", () 
 
   assert.equal(state.status, "running");
   assert.equal(state.beginnerTutorial.phase, "complete");
-  assert.equal(state.difficulty, "easy");
-  assert.equal(state.enemyErrorRate, DIFFICULTY_SETTINGS.easy.errorRate);
+  assert.equal(state.difficulty, "beginner");
+  assert.equal(state.enemyErrorRate, DIFFICULTY_SETTINGS.beginner.errorRate);
 });
 
 test("snakes start closer to board edges", () => {
@@ -1188,6 +1188,40 @@ test("collecting own snake food awards one point when points are below body leng
   assert.equal(state.food.player, null);
 });
 
+test("collecting own snake food does not award when points equal body length", () => {
+  let state = createGameState({ difficulty: "hard", width: 17, height: 17, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    player: {
+      ...state.player,
+      score: 2,
+      snake: [{ x: 5, y: 8 }, { x: 4, y: 8 }, { x: 3, y: 8 }],
+      direction: "RIGHT",
+      nextDirection: "RIGHT",
+      stunTicks: 0
+    },
+    enemy: {
+      ...state.enemy,
+      score: 6,
+      snake: [{ x: 13, y: 8 }, { x: 14, y: 8 }, { x: 15, y: 8 }],
+      direction: "LEFT",
+      nextDirection: "LEFT",
+      stunTicks: 99
+    },
+    food: {
+      point: { x: 0, y: 0 },
+      player: { x: 6, y: 8 },
+      enemy: null
+    }
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.equal(state.player.score, 2);
+  assert.equal(state.food.player, null);
+});
+
 test("collecting own snake food does not award points when points meet body length", () => {
   let state = createGameState({ difficulty: "hard", width: 17, height: 17, rng: () => 0 });
   state = {
@@ -1396,6 +1430,39 @@ test("snake loses immediately when damage would drop body below one segment", ()
 
   assert.equal(state.player.snake.length, 0);
   assert.equal(state.status, "enemy_won");
+});
+
+test("snake auto-turns to a safe direction after stun recovery when no new input is provided", () => {
+  let state = createGameState({ difficulty: "hard", width: 12, height: 12, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    player: {
+      ...state.player,
+      score: 2,
+      snake: [{ x: 5, y: 5 }, { x: 4, y: 5 }, { x: 3, y: 5 }],
+      direction: "RIGHT",
+      nextDirection: "RIGHT",
+      stunTicks: 0,
+      damageStreak: 1
+    },
+    enemy: {
+      ...state.enemy,
+      score: 2,
+      snake: [{ x: 6, y: 5 }, { x: 7, y: 5 }, { x: 8, y: 5 }],
+      direction: "RIGHT",
+      nextDirection: "RIGHT",
+      stunTicks: 99,
+      damageStreak: 0
+    },
+    food: { point: { x: 0, y: 0 }, player: null, enemy: null }
+  };
+
+  state = advanceGame(state, () => 0.5);
+
+  assert.equal(state.player.stunTicks, 0);
+  assert.notEqual(state.player.direction, "RIGHT");
+  assert.equal(state.player.damageStreak, 0);
 });
 
 console.log(`\n${passed} tests passed.`);

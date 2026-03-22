@@ -543,9 +543,6 @@ export function advanceTutorialPrompt(state, rng = Math.random) {
     return {
       ...state,
       status: "running",
-      difficulty: "easy",
-      enemyErrorRate: DIFFICULTY_SETTINGS.easy.errorRate,
-      enemyEarlyErrorBias: DIFFICULTY_SETTINGS.easy.earlyErrorBias,
       beginnerTutorial: {
         ...state.beginnerTutorial,
         phase: "complete",
@@ -919,7 +916,7 @@ export function advanceGame(state, rng = Math.random) {
   const beginnerIntroActive = state.beginnerTutorial?.phase === "to_first_food";
   const beginnerEnemyFoodObjectiveActive = state.beginnerTutorial?.phase === "to_enemy_food";
   const tutorialSafetyActive = Boolean(state.beginnerTutorial && state.beginnerTutorial.phase !== "complete");
-  const playerDirection = isOppositeDirection(state.player.direction, state.player.nextDirection)
+  let playerDirection = isOppositeDirection(state.player.direction, state.player.nextDirection)
     ? state.player.direction
     : state.player.nextDirection;
   const enemyHead = state.enemy.snake[0];
@@ -950,16 +947,8 @@ export function advanceGame(state, rng = Math.random) {
   const enemyFood = state.food.enemy;
   const playerCanMove = state.player.stunTicks === 0;
   const enemyCanMove = state.enemy.stunTicks === 0;
-  const nextPlayerHead = playerCanMove ? nextHeadPosition(playerHead, playerDirection) : playerHead;
   const nextEnemyHead = enemyCanMove ? nextHeadPosition(enemyHead, enemyDirection) : enemyHead;
-  const playerWillEatPoint = Boolean(playerCanMove && pointFood && sameCell(nextPlayerHead, pointFood));
   const enemyWillEatPoint = Boolean(enemyCanMove && pointFood && sameCell(nextEnemyHead, pointFood));
-  const playerWillEatPlayerFood = Boolean(
-    playerCanMove && playerFood && sameCell(nextPlayerHead, playerFood)
-  );
-  const playerWillEatEnemyFood = Boolean(
-    playerCanMove && enemyFood && sameCell(nextPlayerHead, enemyFood)
-  );
   const enemyWillEatEnemyFood = Boolean(
     enemyCanMove && enemyFood && sameCell(nextEnemyHead, enemyFood)
   );
@@ -974,26 +963,88 @@ export function advanceGame(state, rng = Math.random) {
     && sameCell(nextEnemyHead, enemyTargetFood)
   );
 
-  const playerBodyForCollision = computeCollisionBody(
-    state.player.snake,
-    playerWillEatPoint,
-    playerCanMove
-  );
   const enemyBodyForCollision = computeCollisionBody(state.enemy.snake, enemyWillEatPoint, enemyCanMove);
+  const evaluatePlayerMove = (direction) => {
+    const nextPlayerHead = playerCanMove ? nextHeadPosition(playerHead, direction) : playerHead;
+    const playerWillEatPoint = Boolean(playerCanMove && pointFood && sameCell(nextPlayerHead, pointFood));
+    const playerWillEatPlayerFood = Boolean(
+      playerCanMove && playerFood && sameCell(nextPlayerHead, playerFood)
+    );
+    const playerWillEatEnemyFood = Boolean(
+      playerCanMove && enemyFood && sameCell(nextPlayerHead, enemyFood)
+    );
+    const playerBodyForCollision = computeCollisionBody(
+      state.player.snake,
+      playerWillEatPoint,
+      playerCanMove
+    );
+    const playerHitBoundary = playerCanMove && !isInsideBoard(nextPlayerHead, state.width, state.height);
+    const playerHitWall = playerCanMove && hasWallCell(state.walls, nextPlayerHead);
+    const playerSelfHit = playerCanMove
+      && playerBodyForCollision.some((segment) => sameCell(segment, nextPlayerHead));
+    const playerHitEnemyBody = playerCanMove
+      && enemyBodyForCollision.some((segment) => sameCell(segment, nextPlayerHead));
+    const headOnHeadHit = playerCanMove && enemyCanMove && sameCell(nextPlayerHead, nextEnemyHead);
 
-  const playerHitBoundary = playerCanMove && !isInsideBoard(nextPlayerHead, state.width, state.height);
+    return {
+      nextPlayerHead,
+      playerWillEatPoint,
+      playerWillEatPlayerFood,
+      playerWillEatEnemyFood,
+      playerBodyForCollision,
+      playerHitBoundary,
+      playerHitWall,
+      playerSelfHit,
+      playerHitEnemyBody,
+      headOnHeadHit
+    };
+  };
+
+  let playerMove = evaluatePlayerMove(playerDirection);
+  const playerWouldTakeSnakeCollisionDamage = playerMove.playerHitEnemyBody || playerMove.headOnHeadHit;
+  const shouldAutoRecoverTurn = playerCanMove
+    && !tutorialSafetyActive
+    && state.player.damageStreak > 0
+    && state.player.nextDirection === state.player.direction
+    && playerWouldTakeSnakeCollisionDamage;
+  if (shouldAutoRecoverTurn) {
+    for (const direction of Object.keys(DIRECTIONS)) {
+      if (state.player.snake.length > 1 && isOppositeDirection(state.player.direction, direction)) {
+        continue;
+      }
+      const candidateMove = evaluatePlayerMove(direction);
+      const candidateDamage = candidateMove.playerHitBoundary
+        || candidateMove.playerHitWall
+        || candidateMove.playerSelfHit
+        || candidateMove.playerHitEnemyBody
+        || candidateMove.headOnHeadHit;
+      if (!candidateDamage) {
+        playerDirection = direction;
+        playerMove = candidateMove;
+        break;
+      }
+    }
+  }
+
+  const {
+    nextPlayerHead,
+    playerWillEatPoint,
+    playerWillEatPlayerFood,
+    playerWillEatEnemyFood,
+    playerBodyForCollision,
+    playerHitBoundary,
+    playerHitWall,
+    playerSelfHit,
+    playerHitEnemyBody,
+    headOnHeadHit
+  } = playerMove;
+
   const enemyHitBoundary = enemyCanMove && !isInsideBoard(nextEnemyHead, state.width, state.height);
-  const playerHitWall = playerCanMove && hasWallCell(state.walls, nextPlayerHead);
   const enemyHitWall = enemyCanMove && hasWallCell(state.walls, nextEnemyHead);
-  const playerSelfHit = playerCanMove
-    && playerBodyForCollision.some((segment) => sameCell(segment, nextPlayerHead));
   const enemySelfHit = enemyCanMove
     && enemyBodyForCollision.some((segment) => sameCell(segment, nextEnemyHead));
-  const playerHitEnemyBody = playerCanMove
-    && enemyBodyForCollision.some((segment) => sameCell(segment, nextPlayerHead));
   const enemyHitPlayerBody = enemyCanMove
     && playerBodyForCollision.some((segment) => sameCell(segment, nextEnemyHead));
-  const headOnHeadHit = playerCanMove && enemyCanMove && sameCell(nextPlayerHead, nextEnemyHead);
 
   const playerTookDamage = playerHitBoundary || playerHitWall || playerSelfHit || playerHitEnemyBody || headOnHeadHit;
   const enemyTookDamage = enemyHitBoundary || enemyHitWall || enemySelfHit || enemyHitPlayerBody || headOnHeadHit;
@@ -1071,10 +1122,12 @@ export function advanceGame(state, rng = Math.random) {
   if (!enemyTookDamage && enemyWillEatPoint) {
     enemyDelta += 1;
   }
-  if (!playerTookDamage && playerWillEatPlayerFood && state.player.score < playerSnake.length) {
+  const playerBodyLength = Math.max(0, playerSnake.length - 1);
+  const enemyBodyLength = Math.max(0, enemySnake.length - 1);
+  if (!playerTookDamage && playerWillEatPlayerFood && state.player.score < playerBodyLength) {
     playerDelta += 1;
   }
-  if (!enemyTookDamage && enemyWillEatEnemyFood && state.enemy.score < enemySnake.length) {
+  if (!enemyTookDamage && enemyWillEatEnemyFood && state.enemy.score < enemyBodyLength) {
     enemyDelta += 1;
   }
   const crossSteal = playerWillEatEnemyFood && enemyWillEatPlayerFood;
