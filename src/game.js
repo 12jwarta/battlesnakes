@@ -424,6 +424,12 @@ export function queueDirection(state, direction) {
   if (!DIRECTIONS[direction]) {
     return state;
   }
+  const nextTutorial = state.beginnerTutorial?.playerResetNotice
+    ? {
+      ...state.beginnerTutorial,
+      playerResetNotice: null
+    }
+    : state.beginnerTutorial;
 
   if (state.beginnerTutorial?.phase === "await_start") {
     return {
@@ -435,7 +441,7 @@ export function queueDirection(state, direction) {
         nextDirection: "UP"
       },
       beginnerTutorial: {
-        ...state.beginnerTutorial,
+        ...nextTutorial,
         phase: "to_first_food"
       }
     };
@@ -452,6 +458,7 @@ export function queueDirection(state, direction) {
       ...state.player,
       nextDirection: direction
     },
+    beginnerTutorial: nextTutorial,
     status
   };
 }
@@ -461,6 +468,12 @@ export function advanceTutorialPrompt(state, rng = Math.random) {
   if (!phase) {
     return state;
   }
+  const tutorialBase = state.beginnerTutorial?.playerResetNotice
+    ? {
+      ...state.beginnerTutorial,
+      playerResetNotice: null
+    }
+    : state.beginnerTutorial;
 
   if (phase === "after_first_food") {
     const refreshedEnemyTarget = placeBeginnerEnemyTarget(
@@ -481,7 +494,7 @@ export function advanceTutorialPrompt(state, rng = Math.random) {
       ...state,
       status: "running",
       beginnerTutorial: {
-        ...state.beginnerTutorial,
+        ...tutorialBase,
         phase: "to_enemy_food",
         enemyTarget: refreshedEnemyTarget
       }
@@ -493,7 +506,7 @@ export function advanceTutorialPrompt(state, rng = Math.random) {
       ...state,
       status: "running",
       beginnerTutorial: {
-        ...state.beginnerTutorial,
+        ...tutorialBase,
         phase: "wait_enemy_point",
         enemyTarget: null,
         avoidPointCell: null
@@ -506,7 +519,7 @@ export function advanceTutorialPrompt(state, rng = Math.random) {
       ...state,
       status: "running",
       beginnerTutorial: {
-        ...state.beginnerTutorial,
+        ...tutorialBase,
         phase: "to_practice_points",
         practicePointCount: 0,
         enemyTarget: null
@@ -520,7 +533,7 @@ export function advanceTutorialPrompt(state, rng = Math.random) {
       status: "running",
       food: createFoodState(null, null, null),
       beginnerTutorial: {
-        ...state.beginnerTutorial,
+        ...tutorialBase,
         phase: "break_barrier"
       }
     };
@@ -532,7 +545,7 @@ export function advanceTutorialPrompt(state, rng = Math.random) {
       status: "paused",
       food: createTutorialFinalFoodSet(state, rng),
       beginnerTutorial: {
-        ...state.beginnerTutorial,
+        ...tutorialBase,
         phase: "final_ready_prompt",
         enemyTarget: null
       }
@@ -544,7 +557,7 @@ export function advanceTutorialPrompt(state, rng = Math.random) {
       ...state,
       status: "running",
       beginnerTutorial: {
-        ...state.beginnerTutorial,
+        ...tutorialBase,
         phase: "complete",
         enemyTarget: null,
         avoidPointCell: null
@@ -915,7 +928,8 @@ export function advanceGame(state, rng = Math.random) {
 
   const beginnerIntroActive = state.beginnerTutorial?.phase === "to_first_food";
   const beginnerEnemyFoodObjectiveActive = state.beginnerTutorial?.phase === "to_enemy_food";
-  const tutorialSafetyActive = Boolean(state.beginnerTutorial && state.beginnerTutorial.phase !== "complete");
+  const tutorialPlayerSafetyActive = Boolean(state.beginnerTutorial && state.beginnerTutorial.phase !== "complete");
+  const tutorialEnemySafetyActive = false;
   let playerDirection = isOppositeDirection(state.player.direction, state.player.nextDirection)
     ? state.player.direction
     : state.player.nextDirection;
@@ -1003,7 +1017,7 @@ export function advanceGame(state, rng = Math.random) {
   let playerMove = evaluatePlayerMove(playerDirection);
   const playerWouldTakeSnakeCollisionDamage = playerMove.playerHitEnemyBody || playerMove.headOnHeadHit;
   const shouldAutoRecoverTurn = playerCanMove
-    && !tutorialSafetyActive
+    && !tutorialPlayerSafetyActive
     && state.player.damageStreak > 0
     && state.player.nextDirection === state.player.direction
     && playerWouldTakeSnakeCollisionDamage;
@@ -1050,7 +1064,7 @@ export function advanceGame(state, rng = Math.random) {
   const enemyTookDamage = enemyHitBoundary || enemyHitWall || enemySelfHit || enemyHitPlayerBody || headOnHeadHit;
 
   const playerSnake = playerTookDamage
-    ? (tutorialSafetyActive
+    ? (tutorialPlayerSafetyActive
       ? state.player.snake
       : (state.player.snake.length > 1 ? state.player.snake.slice(0, -1) : []))
     : playerCanMove
@@ -1060,9 +1074,9 @@ export function advanceGame(state, rng = Math.random) {
         ]
       : state.player.snake;
   const enemySnake = enemyTookDamage
-    ? (tutorialSafetyActive
+    ? (tutorialEnemySafetyActive
       ? state.enemy.snake
-      : (state.enemy.snake.length > 1 ? state.enemy.snake.slice(0, -1) : []))
+      : (state.enemy.snake.length > 1 ? state.enemy.snake.slice(0, -1) : state.enemy.snake))
     : enemyCanMove
       ? [nextEnemyHead, ...(enemyWillEatPoint ? state.enemy.snake : state.enemy.snake.slice(0, -1))]
       : state.enemy.snake;
@@ -1111,8 +1125,10 @@ export function advanceGame(state, rng = Math.random) {
 
   let playerDelta = playerTookDamage && !beginnerIntroActive ? -1 : 0;
   let enemyDelta = enemyTookDamage && !beginnerIntroActive ? -1 : 0;
-  if (tutorialSafetyActive) {
+  if (tutorialPlayerSafetyActive) {
     playerDelta = 0;
+  }
+  if (tutorialEnemySafetyActive) {
     enemyDelta = 0;
   }
 
@@ -1146,15 +1162,15 @@ export function advanceGame(state, rng = Math.random) {
   const enemyStunTicks = enemyTookDamage
     ? DAMAGE_STUN_TICKS
     : Math.max(0, state.enemy.stunTicks - 1);
-  const playerDroppedBelowLength = !tutorialSafetyActive && playerTookDamage && state.player.snake.length <= 1;
-  const enemyDroppedBelowLength = !tutorialSafetyActive && enemyTookDamage && state.enemy.snake.length <= 1;
+  const playerDroppedBelowLength = !tutorialPlayerSafetyActive && resolvedPlayerSnake.length < 1;
+  const enemyDroppedBelowLength = !tutorialEnemySafetyActive && resolvedEnemySnake.length < 1;
   const playerDamageStreak = playerTookDamage
-    ? (tutorialSafetyActive ? state.player.damageStreak : state.player.damageStreak + 1)
+    ? state.player.damageStreak + 1
     : playerCanMove
       ? 0
       : state.player.damageStreak;
   const enemyDamageStreak = enemyTookDamage
-    ? (tutorialSafetyActive ? state.enemy.damageStreak : state.enemy.damageStreak + 1)
+    ? (tutorialEnemySafetyActive ? state.enemy.damageStreak : state.enemy.damageStreak + 1)
     : enemyCanMove
       ? 0
       : state.enemy.damageStreak;
@@ -1241,6 +1257,7 @@ export function advanceGame(state, rng = Math.random) {
     && nextPlayerHead.x === containmentWallX;
   const barrierStunResolved = state.beginnerTutorial?.phase === "wall_break_stun"
     && nextState.player.stunTicks === 0;
+  const shouldResetPlayerForTutorial = tutorialPlayerSafetyActive && playerDamageStreak >= 3;
   let nextBeginnerTutorial = state.beginnerTutorial;
   let tutorialFoodOverride = null;
   let forcedEnemyScore = null;
@@ -1372,12 +1389,30 @@ export function advanceGame(state, rng = Math.random) {
       };
     }
   }
+  if (shouldResetPlayerForTutorial && nextBeginnerTutorial) {
+    const centerY = Math.floor(state.height / 2);
+    const safeResetHead = { x: 2, y: centerY };
+    const resetLength = Math.max(1, state.player.snake.length);
+    nextState.player = {
+      ...nextState.player,
+      snake: buildInitialSnake(safeResetHead, "RIGHT", resetLength, state.width, state.height).map(cloneCell),
+      direction: "RIGHT",
+      nextDirection: "RIGHT",
+      stunTicks: 0,
+      damageStreak: 0
+    };
+    nextBeginnerTutorial = {
+      ...nextBeginnerTutorial,
+      playerResetNotice: "You took damage three times in a row, so we reset you at this tutorial step."
+    };
+  }
   const tutorialStatus = (
     completedBeginnerIntro
     || completedBeginnerEnemyFoodObjective
     || completedEnemyPointWatchObjective
     || pauseForPracticeCheckpoint
     || barrierStunResolved
+    || shouldResetPlayerForTutorial
   ) && finalStatus === "running"
     ? "paused"
     : finalStatus;

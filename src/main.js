@@ -585,6 +585,9 @@ function updateBeginnerDialog(currentState) {
     } else {
       runningText = "Tutorial sequence continuing. Follow the next prompt to proceed.";
     }
+    if (currentState.beginnerTutorial?.playerResetNotice) {
+      runningText = `${currentState.beginnerTutorial.playerResetNotice} ${runningText}`;
+    }
     beginnerDialogTitleElement.textContent = "Beginner Mode Tutorial";
     beginnerDialogTextElement.textContent = runningText;
     beginnerDialogElement.removeAttribute("hidden");

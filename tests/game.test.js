@@ -138,7 +138,7 @@ test("beginner enemy target respawns in far enemy zone when collected before pla
   assert.equal(state.enemy.score, 0);
 });
 
-test("beginner intro damage does not reduce points or body length", () => {
+test("beginner player resets at current step after three consecutive damage ticks", () => {
   let state = createGameState({ difficulty: "beginner", width: 17, height: 17, rng: () => 0 });
   state = {
     ...state,
@@ -169,7 +169,50 @@ test("beginner intro damage does not reduce points or body length", () => {
 
   assert.equal(state.player.score, 2);
   assert.equal(state.player.snake.length, 3);
-  assert.equal(state.player.damageStreak, 2);
+  assert.equal(state.player.damageStreak, 0);
+  assert.equal(state.status, "paused");
+  assert.equal(state.beginnerTutorial.phase, "to_first_food");
+  assert.ok(state.beginnerTutorial.playerResetNotice);
+});
+
+test("beginner enemy can take damage down to one segment without losing tutorial", () => {
+  let state = createGameState({
+    difficulty: "beginner",
+    width: 17,
+    height: 17,
+    enemyControl: "human",
+    rng: () => 0
+  });
+  state = {
+    ...state,
+    status: "running",
+    enemyControl: "human",
+    beginnerTutorial: { phase: "to_practice_points" },
+    player: {
+      ...state.player,
+      snake: [{ x: 2, y: 8 }, { x: 1, y: 8 }, { x: 0, y: 8 }],
+      direction: "RIGHT",
+      nextDirection: "RIGHT",
+      stunTicks: 99
+    },
+    enemy: {
+      ...state.enemy,
+      score: 3,
+      snake: [{ x: 16, y: 8 }, { x: 15, y: 8 }],
+      direction: "RIGHT",
+      nextDirection: "RIGHT",
+      stunTicks: 0,
+      damageStreak: 0
+    },
+    food: { point: { x: 3, y: 3 }, player: null, enemy: null }
+  };
+
+  state = advanceGame(state, () => 0.5);
+  assert.equal(state.enemy.snake.length, 1);
+  assert.equal(state.status, "running");
+
+  state = advanceGame(state, () => 0.5);
+  assert.equal(state.enemy.snake.length, 1);
   assert.equal(state.status, "running");
 });
 
