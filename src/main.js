@@ -641,7 +641,7 @@ function difficultyEncouragement(currentState) {
       return "Strong round on Medium, see how you do on Hard.";
     }
 
-    return "Hard mode win secured.";
+    return "";
   }
 
   if (currentState.status === "enemy_won") {
