@@ -541,8 +541,98 @@ button:hover {
   line-height: 1.35;
 }
 
+.beginner-dialog--overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(calc(100% - 18px), 620px);
+  margin: 0;
+  z-index: 18;
+  background: rgba(246, 242, 232, 0.97);
+  box-shadow: 0 8px 18px rgba(42, 35, 24, 0.18);
+}
+
+.beginner-dialog--overlay.beginner-dialog--phase-split-top {
+  top: 8px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(calc(100% - 18px), 700px);
+  aspect-ratio: auto;
+  overflow: visible;
+}
+
+.beginner-dialog--overlay.beginner-dialog--phase-after-enemy-point {
+  top: 8px;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
 .beginner-dialog[hidden] {
   display: none !important;
+}
+
+.tutorial-callouts {
+  position: absolute;
+  inset: 0;
+  z-index: 17;
+  pointer-events: none;
+}
+
+.tutorial-callouts[hidden] {
+  display: none !important;
+}
+
+.tutorial-callout {
+  position: absolute;
+  width: auto;
+  height: auto;
+  color: #d7191c;
+  font-size: 1.15rem;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  text-shadow: 0 0 1px #7e0000, 0 0 4px rgba(126, 0, 0, 0.3);
+  transform: translate(-50%, -50%);
+}
+
+.tutorial-callout--up {
+  transform: translate(-50%, calc(-50% + 18px)) rotate(-90deg);
+}
+
+.tutorial-callout--down {
+  transform: translate(-50%, calc(-50% - 18px)) rotate(90deg);
+}
+
+.tutorial-callout--left {
+  transform: translate(calc(-50% + 18px), -50%) rotate(180deg);
+}
+
+.tutorial-callout--right {
+  transform: translate(calc(-50% - 18px), -50%) rotate(0deg);
+}
+
+.tutorial-callout--in-cell {
+  transform: translate(-50%, -50%);
+}
+
+.tutorial-callout--in-cell.tutorial-callout--up {
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+.tutorial-callout--in-cell.tutorial-callout--down {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.tutorial-callout--in-cell.tutorial-callout--left {
+  transform: translate(-50%, -50%) rotate(180deg);
+}
+
+.tutorial-callout--in-cell.tutorial-callout--right {
+  transform: translate(-50%, -50%) rotate(0deg);
 }
 
 .points-row {
@@ -597,6 +687,22 @@ button:hover {
 .mini-score {
   min-width: 20px;
   text-align: right;
+}
+
+.mini-score--tutorial-callout {
+  position: relative;
+}
+
+.mini-score--tutorial-callout::before {
+  content: "➜";
+  position: absolute;
+  right: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+  color: #d7191c;
+  font-size: 1.15rem;
+  font-weight: 900;
+  text-shadow: 0 0 1px #7e0000, 0 0 4px rgba(126, 0, 0, 0.3);
 }
 
 .board::before,
@@ -792,8 +898,32 @@ button:hover {
     background: #f6f2e8;
   }
 
+  .hint {
+    display: none;
+  }
+
   .mobile-actions button {
     min-height: 48px;
     font-weight: 600;
+  }
+
+  .beginner-dialog--overlay {
+    top: 50%;
+    width: min(calc(100% - 12px), 620px);
+    padding: 8px 10px;
+  }
+
+  .beginner-dialog--overlay.beginner-dialog--phase-split-top {
+    top: 6px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(calc(100% - 12px), 620px);
+  }
+
+  .beginner-dialog--overlay.beginner-dialog--phase-after-enemy-point {
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
   }
 }

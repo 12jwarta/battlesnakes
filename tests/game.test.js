@@ -79,7 +79,11 @@ test("beginner mode starts paused with scripted coordinates and first point", ()
   assert.equal(state.player.snake.length, 3);
   assert.equal(state.enemy.snake.length, 3);
   assert.deepEqual(state.player.snake[0], { x: 3, y: 13 });
+  assert.deepEqual(state.player.snake[1], { x: 3, y: 14 });
+  assert.deepEqual(state.player.snake[2], { x: 3, y: 15 });
   assert.deepEqual(state.enemy.snake[0], { x: 13, y: 13 });
+  assert.deepEqual(state.enemy.snake[1], { x: 13, y: 14 });
+  assert.deepEqual(state.enemy.snake[2], { x: 13, y: 15 });
   assert.deepEqual(state.food.point, { x: 3, y: 3 });
   assert.equal(state.beginnerTutorial.phase, "await_start");
   assert.ok(state.beginnerTutorial.enemyTarget);
@@ -175,7 +179,7 @@ test("beginner player resets at current step after three consecutive damage tick
   assert.ok(state.beginnerTutorial.playerResetNotice);
 });
 
-test("beginner enemy can take damage down to one segment without losing tutorial", () => {
+test("beginner tutorial damage only applies stun/sequence and not real enemy health loss", () => {
   let state = createGameState({
     difficulty: "beginner",
     width: 17,
@@ -208,11 +212,13 @@ test("beginner enemy can take damage down to one segment without losing tutorial
   };
 
   state = advanceGame(state, () => 0.5);
-  assert.equal(state.enemy.snake.length, 1);
+  assert.equal(state.enemy.snake.length, 2);
+  assert.equal(state.enemy.stunTicks, DAMAGE_STUN_TICKS);
+  assert.equal(state.enemy.score, 3);
   assert.equal(state.status, "running");
 
   state = advanceGame(state, () => 0.5);
-  assert.equal(state.enemy.snake.length, 1);
+  assert.equal(state.enemy.snake.length, 2);
   assert.equal(state.status, "running");
 });
 
@@ -470,8 +476,12 @@ test("practice spawn on player side creates enemy invisible target on enemy side
   assert.ok(state.food.point);
   const pointXFromLeft = state.food.point.x + 1;
   assert.ok(pointXFromLeft < 9);
-  assert.equal(state.food.player, null);
-  assert.equal(state.food.enemy, null);
+  assert.ok(state.food.player);
+  assert.ok(state.food.enemy);
+  const playerFoodXFromLeft = state.food.player.x + 1;
+  const enemyFoodXFromLeft = state.food.enemy.x + 1;
+  assert.ok(playerFoodXFromLeft > 9);
+  assert.ok(enemyFoodXFromLeft > 9);
   assert.ok(state.beginnerTutorial.enemyTarget);
   const targetXFromLeft = state.beginnerTutorial.enemyTarget.x + 1;
   assert.ok(targetXFromLeft > 10);
@@ -1051,6 +1061,46 @@ test("damaged snake pauses movement until stun expires", () => {
   state = advanceGame(state, () => 0);
   assert.deepEqual(state.player.snake[0], headAfterDamage);
   assert.equal(state.player.stunTicks, DAMAGE_STUN_TICKS - 1);
+});
+
+test("direction input during stun is buffered and applies on first recovery tick", () => {
+  let state = createGameState({ difficulty: "hard", width: 10, height: 8, rng: () => 0 });
+  state = {
+    ...state,
+    status: "running",
+    player: {
+      ...state.player,
+      score: 2,
+      snake: [{ x: 9, y: 3 }, { x: 8, y: 3 }, { x: 7, y: 3 }],
+      direction: "RIGHT",
+      nextDirection: "RIGHT",
+      bufferedDirection: null,
+      stunTicks: 0
+    },
+    enemy: {
+      ...state.enemy,
+      snake: [{ x: 2, y: 4 }, { x: 3, y: 4 }, { x: 4, y: 4 }],
+      direction: "LEFT",
+      nextDirection: "LEFT"
+    }
+  };
+
+  state = advanceGame(state, () => 0);
+  assert.equal(state.player.stunTicks, DAMAGE_STUN_TICKS);
+  const headAfterDamage = state.player.snake[0];
+
+  state = queueDirection(state, "UP");
+  assert.equal(state.player.bufferedDirection, "UP");
+  assert.equal(state.player.nextDirection, "RIGHT");
+
+  for (let tick = 0; tick < DAMAGE_STUN_TICKS + 1; tick += 1) {
+    state = advanceGame(state, () => 0);
+  }
+
+  assert.deepEqual(state.player.snake[0], { x: headAfterDamage.x, y: headAfterDamage.y - 1 });
+  assert.equal(state.player.direction, "UP");
+  assert.equal(state.player.nextDirection, "UP");
+  assert.equal(state.player.bufferedDirection, null);
 });
 
 test("food placement only uses open cells across both snakes", () => {

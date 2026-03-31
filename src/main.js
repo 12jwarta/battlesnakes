@@ -53,6 +53,7 @@ const pointsBarElement = document.querySelector("#points-bar");
 const beginnerDialogElement = document.querySelector("#beginner-dialog");
 const beginnerDialogTitleElement = document.querySelector("#beginner-dialog-title");
 const beginnerDialogTextElement = document.querySelector("#beginner-dialog-text");
+const tutorialCalloutsElement = document.querySelector("#tutorial-callouts");
 const playerMiniSnakeElement = document.querySelector("#player-mini-snake");
 const enemyMiniSnakeElement = document.querySelector("#enemy-mini-snake");
 const playerMiniScoreElement = document.querySelector("#player-mini-score");
@@ -112,6 +113,10 @@ const MOBILE_SPEED_SCALE = 1.22;
 let menuOpen = false;
 let colorblindMode = false;
 let controlScheme = "dpad";
+let mobileAfterFirstFoodDialogPart = 1;
+let mobileAfterEnemyFoodDialogPart = 1;
+let mobileAfterEnemyPointDialogPart = 1;
+let mobileAfterBarrierDialogPart = 1;
 
 function isOnlineActive() {
   return Boolean(onlineSession);
@@ -153,6 +158,12 @@ function applyPreset(name) {
 
 function isMobileLayout() {
   return window.matchMedia("(max-width: 560px), (pointer: coarse)").matches;
+}
+
+function splitAdvanceHint() {
+  return isMobileLayout()
+    ? "(tap Pause/Resume for part 2)"
+    : "(press Space for part 2)";
 }
 
 function syncSettingsControls() {
@@ -546,6 +557,240 @@ function isBeginnerDialogActive(currentState) {
   return currentState.beginnerTutorial.phase !== "complete";
 }
 
+function getTutorialCallouts(currentState) {
+  const phase = currentState.beginnerTutorial?.phase;
+  if (!phase) {
+    return [];
+  }
+
+  const inCellArrowFromLeft = (targetCell) => {
+    if (!targetCell) {
+      return null;
+    }
+    if (targetCell.x > 0) {
+      return {
+        cell: { x: targetCell.x - 1, y: targetCell.y },
+        direction: "right",
+        inCell: true
+      };
+    }
+    return {
+      cell: { x: Math.min(currentState.width - 1, targetCell.x + 1), y: targetCell.y },
+      direction: "left",
+      inCell: true
+    };
+  };
+  const inCellArrowTowardCell = (targetCell) => {
+    if (!targetCell) {
+      return null;
+    }
+    if (targetCell.x > 0) {
+      return {
+        cell: { x: targetCell.x - 1, y: targetCell.y },
+        direction: "right",
+        inCell: true
+      };
+    }
+    if (targetCell.x < currentState.width - 1) {
+      return {
+        cell: { x: targetCell.x + 1, y: targetCell.y },
+        direction: "left",
+        inCell: true
+      };
+    }
+    if (targetCell.y > 0) {
+      return {
+        cell: { x: targetCell.x, y: targetCell.y - 1 },
+        direction: "down",
+        inCell: true
+      };
+    }
+    if (targetCell.y < currentState.height - 1) {
+      return {
+        cell: { x: targetCell.x, y: targetCell.y + 1 },
+        direction: "up",
+        inCell: true
+      };
+    }
+    return null;
+  };
+
+  const playerHead = currentState.player.snake[0];
+  const enemyHead = currentState.enemy.snake[0];
+  const pointFood = currentState.food.point;
+  const playerFood = currentState.food.player;
+  const enemyFood = currentState.food.enemy;
+  const centerX = Math.floor((currentState.width - 1) / 2);
+  const containmentWallX = centerX - 1;
+
+  if (phase === "await_start" || phase === "to_first_food") {
+    if (!pointFood) {
+      return [];
+    }
+    return [{
+      cell: {
+        x: Math.max(0, pointFood.x - 1),
+        y: pointFood.y
+      },
+      direction: "right",
+      inCell: true
+    }];
+  }
+
+  if (phase === "after_first_food" || phase === "to_enemy_food") {
+    if (!enemyFood) {
+      return [];
+    }
+    const callouts = [{
+      cell: {
+        x: Math.max(0, enemyFood.x - 1),
+        y: enemyFood.y
+      },
+      direction: "right",
+      inCell: true
+    }];
+
+    if (phase === "after_first_food" && currentState.player.snake.length > 1) {
+      const gainedSegment = currentState.player.snake[currentState.player.snake.length - 1];
+      callouts.push({
+        cell: {
+          x: Math.max(0, gainedSegment.x - 1),
+          y: gainedSegment.y
+        },
+        direction: "right",
+        inCell: true
+      });
+    }
+
+    return callouts;
+  }
+
+  if (phase === "after_enemy_food") {
+    return [];
+  }
+
+  if (phase === "wait_enemy_point") {
+    const callouts = [];
+    const pointCallout = inCellArrowFromLeft(pointFood);
+    const enemyCallout = inCellArrowFromLeft(enemyHead);
+    if (pointCallout) {
+      callouts.push(pointCallout);
+    }
+    if (enemyCallout) {
+      callouts.push(enemyCallout);
+    }
+    return callouts;
+  }
+
+  if (phase === "after_enemy_point" || phase === "to_practice_points") {
+    if (phase === "after_enemy_point") {
+      return [];
+    }
+    return [pointFood, playerFood].filter(Boolean).map((cell, index) => ({
+      cell,
+      direction: index === 0 ? "up" : "left"
+    }));
+  }
+
+  if (phase === "after_practice_points" || phase === "break_barrier" || phase === "wall_break_stun") {
+    if (phase === "after_practice_points") {
+      const callouts = [];
+      const sourceX = containmentWallX > 0 ? containmentWallX - 1 : Math.min(currentState.width - 1, containmentWallX + 1);
+      const direction = sourceX < containmentWallX ? "right" : "left";
+      for (let y = 0; y < currentState.height; y += 2) {
+        callouts.push({
+          cell: { x: sourceX, y },
+          direction,
+          inCell: true
+        });
+      }
+      return callouts;
+    }
+
+    return [{
+      cell: {
+        x: containmentWallX,
+        y: playerHead?.y ?? Math.floor(currentState.height / 2)
+      },
+      direction: "right"
+    }];
+  }
+
+  if (phase === "after_barrier_removed") {
+    const callouts = [];
+    const bodySegments = [
+      ...currentState.player.snake.slice(1),
+      ...currentState.enemy.snake.slice(1)
+    ];
+    for (const segment of bodySegments) {
+      const segmentCallout = inCellArrowTowardCell(segment);
+      if (segmentCallout) {
+        callouts.push(segmentCallout);
+      }
+    }
+
+    const topY = 0;
+    const bottomY = currentState.height - 1;
+    const leftX = 0;
+    const rightX = currentState.width - 1;
+    for (let x = 0; x < currentState.width; x += 2) {
+      callouts.push({ cell: { x, y: topY }, direction: "up", inCell: true });
+      callouts.push({ cell: { x, y: bottomY }, direction: "down", inCell: true });
+    }
+    for (let y = 1; y < currentState.height; y += 2) {
+      callouts.push({ cell: { x: leftX, y }, direction: "left", inCell: true });
+      callouts.push({ cell: { x: rightX, y }, direction: "right", inCell: true });
+    }
+
+    return callouts;
+  }
+
+  if (phase === "final_ready_prompt") {
+    return [pointFood].filter(Boolean).map((cell) => ({ cell, direction: "up" }));
+  }
+
+  return [];
+}
+
+function renderTutorialCallouts(currentState, visible) {
+  if (!tutorialCalloutsElement) {
+    return;
+  }
+
+  if (!visible) {
+    tutorialCalloutsElement.innerHTML = "";
+    tutorialCalloutsElement.setAttribute("hidden", "");
+    return;
+  }
+
+  const callouts = getTutorialCallouts(currentState);
+  if (callouts.length === 0) {
+    tutorialCalloutsElement.innerHTML = "";
+    tutorialCalloutsElement.setAttribute("hidden", "");
+    return;
+  }
+
+  const arrowText = {
+    up: "➜",
+    down: "➜",
+    left: "➜",
+    right: "➜"
+  };
+
+  tutorialCalloutsElement.innerHTML = callouts
+    .map(({ cell, direction, inCell }) => {
+      const left = ((cell.x + 0.5) / currentState.width) * 100;
+      const top = ((cell.y + 0.5) / currentState.height) * 100;
+      const classes = ["tutorial-callout", `tutorial-callout--${direction}`];
+      if (inCell) {
+        classes.push("tutorial-callout--in-cell");
+      }
+      return `<div class="${classes.join(" ")}" style="left:${left}%;top:${top}%">${arrowText[direction] ?? "↑"}</div>`;
+    })
+    .join("");
+  tutorialCalloutsElement.removeAttribute("hidden");
+}
+
 function updateBeginnerDialog(currentState) {
   if (!beginnerDialogElement || !pointsBarElement) {
     return;
@@ -555,31 +800,73 @@ function updateBeginnerDialog(currentState) {
     ? "(tap Pause/Resume to continue)"
     : "(press Space to continue)";
   const active = isBeginnerDialogActive(currentState);
+  const pausedTutorialStep = active && currentState.status === "paused";
+  const showScoreCallout = pausedTutorialStep && currentState.beginnerTutorial?.phase === "after_first_food";
+  playerMiniScoreElement.classList.toggle("mini-score--tutorial-callout", showScoreCallout);
   if (active) {
     const phase = currentState.beginnerTutorial?.phase;
+    if (phase !== "after_first_food") {
+      mobileAfterFirstFoodDialogPart = 1;
+    }
+    if (phase !== "after_enemy_food") {
+      mobileAfterEnemyFoodDialogPart = 1;
+    }
+    if (phase !== "after_enemy_point") {
+      mobileAfterEnemyPointDialogPart = 1;
+    }
+    if (phase !== "after_barrier_removed") {
+      mobileAfterBarrierDialogPart = 1;
+    }
+    beginnerDialogElement.classList.toggle(
+      "beginner-dialog--phase-split-top",
+      phase === "after_first_food" || phase === "after_enemy_food" || phase === "after_enemy_point"
+    );
     let runningText;
+    let runningHtml = null;
     if (phase === "await_start") {
       runningText = "Welcome to Battlesnakes! You control the snake on the left. Use the controls to navigate to the point block at the top of your zone (press any direction to start your snake upward)";
     } else if (phase === "to_first_food") {
       runningText = "Move upward and collect the point block at the top of your zone.";
     } else if (phase === "after_first_food") {
-      runningText = `Great, you collected a point block which gives you +1 point and +1 body length. Whenever you collect a point block anywhere, the next point block will generate somewhere in your opponents zone. As there is a wall preventing us from getting there, we are strictly on defense for now. At the other end of your zone is an enemy color block. Navigate back down to get it. ${continueHint}`;
+      if (mobileAfterFirstFoodDialogPart === 1) {
+        runningHtml = `Great, you collected a point block which gives you +1 point and +1 body length. Whenever you collect a point block <strong>anywhere</strong>, the next point block will generate <strong>somewhere in your opponents zone</strong>. ${splitAdvanceHint()}`;
+      } else {
+        runningHtml = `As there is a wall preventing us from getting there, we are strictly on defense for now. At the other end of your zone is an enemy color block. Navigate back down to get it. ${continueHint}`;
+      }
+      runningText = runningHtml;
     } else if (phase === "to_enemy_food") {
       runningText = "Navigate back down to collect the enemy-color block in your zone.";
     } else if (phase === "after_enemy_food") {
-      runningText = `Collecting enemy-colored blocks will decrease your enemy's points by one, denying them their next point, but not next body segment. Typically your color blocks will spawn too, and they work the same for your enemy. Collecting a point block will regenerate all other blocks, collecting snake blocks will not. This means you need to collect snake blocks before someone collects the point block. Wait until you enemy collects the point block then get ready to get back on offense. ${continueHint}`;
+      if (mobileAfterEnemyFoodDialogPart === 1) {
+        runningHtml = `Collecting enemy-colored blocks will decrease your enemy's points by one, denying them their next point, but not next body segment. Typically your color blocks will spawn too, and they work the same for your enemy. Collecting a point block will regenerate all other blocks, collecting snake blocks will not. ${splitAdvanceHint()}`;
+      } else {
+        runningHtml = `This means <strong>snake blocks need to be collected before the point block is collected</strong>. Wait until your enemy collects the point block then get ready to get back on offense. ${continueHint}`;
+      }
+      runningText = runningHtml;
     } else if (phase === "wait_enemy_point") {
       runningText = "Watch the enemy collect their point block, then prepare to go back on offense.";
     } else if (phase === "after_enemy_point") {
-      runningText = `Looks like you're getting the hang of it. If your enemy denied you this point, dont worry; if your points are ever less than your body length, collecting your own color snake blocks will gain you a point back, and keep the enemy from denying you of the current point. In general, it's a good idea to collect any block, but prioritize the point block if you can. Try to play a few more points ${continueHint}`;
+      if (mobileAfterEnemyPointDialogPart === 1) {
+        runningText = `Looks like you're getting the hang of it. If your opponent denies you a point, dont worry; if your points are ever less than your body length, collecting your own color snake blocks will gain you a point back, and keep the enemy from denying you of the current point. ${splitAdvanceHint()}`;
+      } else {
+        runningText = `In general, it's a good idea to collect any block, but prioritize the point block if you can. Try to play a few more points ${continueHint}`;
+      }
     } else if (phase === "to_practice_points") {
-      runningText = "You're on offense now. Try to play a few more points.";
+      const centerX = Math.floor((currentState.width - 1) / 2);
+      const pointOnPlayerSide = Boolean(currentState.food.point && currentState.food.point.x < centerX);
+      runningText = pointOnPlayerSide
+        ? "You're on offense now. Try to play a few more points."
+        : "You're on defense now. Protect your side and look for steals while you wait for offense.";
     } else if (phase === "after_practice_points") {
       runningText = `Okay, let's get rid of this barrier and open the game up! Crash into the wall on the right to break it down. ${continueHint}`;
     } else if (phase === "break_barrier" || phase === "wall_break_stun") {
       runningText = "Crash into the right containment wall to break it down.";
     } else if (phase === "after_barrier_removed") {
-      runningText = `When your snake hits a wall or the body of the other snake, it loses one point and loses one body segment. After that the snake is stunned for a short while. If snakes collide head on, both are damaged and moved one tile in a random direction. A snake taking damage three times in a row will instantly lose, and a snake will also lose if it falls to zero body length. ${continueHint}`;
+      if (mobileAfterBarrierDialogPart === 1) {
+        runningText = `When your snake hits a wall or a body segment of either snake, it loses one point and loses one body segment. After that the snake is stunned for a short while. If snakes collide head on, both are damaged and moved one tile in a random direction. ${splitAdvanceHint()}`;
+      } else {
+        runningText = `A snake taking damage three times in a row will instantly lose, and a snake will also lose if it falls to zero body length. ${continueHint}`;
+      }
     } else if (phase === "final_ready_prompt") {
       runningText = `It's up to you now! Play the rest of this game out and see how you do! ${continueHint}`;
     } else {
@@ -587,14 +874,29 @@ function updateBeginnerDialog(currentState) {
     }
     if (currentState.beginnerTutorial?.playerResetNotice) {
       runningText = `${currentState.beginnerTutorial.playerResetNotice} ${runningText}`;
+      runningHtml = runningHtml
+        ? `${currentState.beginnerTutorial.playerResetNotice} ${runningHtml}`
+        : null;
     }
     beginnerDialogTitleElement.textContent = "Beginner Mode Tutorial";
-    beginnerDialogTextElement.textContent = runningText;
-    beginnerDialogElement.removeAttribute("hidden");
-    pointsBarElement.setAttribute("hidden", "");
+    if (runningHtml) {
+      beginnerDialogTextElement.innerHTML = runningHtml;
+    } else {
+      beginnerDialogTextElement.textContent = runningText;
+    }
+    if (pausedTutorialStep) {
+      beginnerDialogElement.removeAttribute("hidden");
+    } else {
+      beginnerDialogElement.setAttribute("hidden", "");
+    }
+    renderTutorialCallouts(currentState, pausedTutorialStep);
+    pointsBarElement.removeAttribute("hidden");
     return;
   }
 
+  beginnerDialogElement.classList.remove("beginner-dialog--phase-split-top");
+  playerMiniScoreElement.classList.remove("mini-score--tutorial-callout");
+  renderTutorialCallouts(currentState, false);
   beginnerDialogElement.setAttribute("hidden", "");
   pointsBarElement.removeAttribute("hidden");
 }
@@ -915,6 +1217,43 @@ function runPauseToggle() {
     "after_barrier_removed",
     "final_ready_prompt"
   ]);
+  if (
+    state.status === "paused"
+    && state.beginnerTutorial?.phase === "after_first_food"
+    && mobileAfterFirstFoodDialogPart === 1
+  ) {
+    mobileAfterFirstFoodDialogPart = 2;
+    render();
+    return;
+  }
+  if (
+    state.status === "paused"
+    && state.beginnerTutorial?.phase === "after_enemy_food"
+    && mobileAfterEnemyFoodDialogPart === 1
+  ) {
+    mobileAfterEnemyFoodDialogPart = 2;
+    render();
+    return;
+  }
+  if (
+    state.status === "paused"
+    && state.beginnerTutorial?.phase === "after_enemy_point"
+    && mobileAfterEnemyPointDialogPart === 1
+  ) {
+    mobileAfterEnemyPointDialogPart = 2;
+    render();
+    return;
+  }
+  if (
+    state.status === "paused"
+    && state.beginnerTutorial?.phase === "after_barrier_removed"
+    && mobileAfterBarrierDialogPart === 1
+  ) {
+    mobileAfterBarrierDialogPart = 2;
+    render();
+    return;
+  }
+
   if (state.status === "paused" && pauseAdvancePhases.has(state.beginnerTutorial?.phase)) {
     state = advanceTutorialPrompt(state);
     render();

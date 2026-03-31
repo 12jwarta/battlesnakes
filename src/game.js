@@ -199,6 +199,28 @@ function buildInitialSnake(head, direction, size, width, height) {
   return snake.length > 0 ? snake : [head];
 }
 
+function buildVisibleTailDownSnake(head, size, width, height) {
+  const snake = [];
+  for (let index = 0; index < size; index += 1) {
+    const segment = { x: head.x, y: head.y + index };
+    if (!isInsideBoard(segment, width, height)) {
+      break;
+    }
+    snake.push(segment);
+  }
+
+  if (snake.length === 0) {
+    return buildInitialSnake(head, "RIGHT", size, width, height);
+  }
+
+  while (snake.length < size) {
+    const tail = snake[snake.length - 1];
+    snake.push({ x: tail.x, y: tail.y });
+  }
+
+  return snake;
+}
+
 function addStartingLength(snake, direction, width, height) {
   const tail = snake[snake.length - 1];
   if (isInsideBoard(tail, width, height)) {
@@ -312,20 +334,14 @@ export function createGameState(options = {}) {
   const startX = Math.max(startingPlayerSize, Math.floor(width * 0.15));
   const enemyStartX = Math.min(width - startingEnemySize - 1, width - Math.floor(width * 0.15) - 1);
   const startY = Math.floor(height / 2);
-  let playerSnake = buildInitialSnake(
-    presetDifficulty === "beginner" ? beginnerPlayerHead : { x: startX, y: startY },
-    "RIGHT",
-    startingPlayerSize,
-    width,
-    height
-  ).map(cloneCell);
-  let enemySnake = buildInitialSnake(
-    presetDifficulty === "beginner" ? beginnerEnemyHead : { x: enemyStartX, y: startY },
-    "LEFT",
-    startingEnemySize,
-    width,
-    height
-  ).map(cloneCell);
+  let playerSnake = (presetDifficulty === "beginner"
+    ? buildVisibleTailDownSnake(beginnerPlayerHead, startingPlayerSize, width, height)
+    : buildInitialSnake({ x: startX, y: startY }, "RIGHT", startingPlayerSize, width, height))
+    .map(cloneCell);
+  let enemySnake = (presetDifficulty === "beginner"
+    ? buildVisibleTailDownSnake(beginnerEnemyHead, startingEnemySize, width, height)
+    : buildInitialSnake({ x: enemyStartX, y: startY }, "LEFT", startingEnemySize, width, height))
+    .map(cloneCell);
   const beginnerStartingFood = beginnerToBoardCell(width, height, 4, 14);
   const startingFood = presetDifficulty === "beginner"
     ? beginnerStartingFood
@@ -367,6 +383,7 @@ export function createGameState(options = {}) {
       snake: playerSnake,
       direction: "RIGHT",
       nextDirection: "RIGHT",
+      bufferedDirection: null,
       score: startingPlayerPoints,
       stunTicks: 0,
       droppedBelowLength: false,
@@ -438,7 +455,8 @@ export function queueDirection(state, direction) {
       player: {
         ...state.player,
         direction: "UP",
-        nextDirection: "UP"
+        nextDirection: "UP",
+        bufferedDirection: null
       },
       beginnerTutorial: {
         ...nextTutorial,
@@ -452,11 +470,24 @@ export function queueDirection(state, direction) {
   }
 
   const status = state.status === "ready" ? "running" : state.status;
+  if (state.player.stunTicks > 0) {
+    return {
+      ...state,
+      player: {
+        ...state.player,
+        bufferedDirection: direction
+      },
+      beginnerTutorial: nextTutorial,
+      status
+    };
+  }
+
   return {
     ...state,
     player: {
       ...state.player,
-      nextDirection: direction
+      nextDirection: direction,
+      bufferedDirection: null
     },
     beginnerTutorial: nextTutorial,
     status
@@ -887,18 +918,28 @@ function spawnBeginnerPracticeFoodSet(state, rng, pointSide) {
     };
   }
 
+  const playerFood = placeFood(state.width, state.height, snakes, rng, {
+    walls: state.walls,
+    side: "right",
+    blockedCells: [point].filter(Boolean)
+  });
+  const enemyFood = placeFood(state.width, state.height, snakes, rng, {
+    walls: state.walls,
+    side: "right",
+    blockedCells: [point, playerFood].filter(Boolean)
+  });
   const enemyTarget = placeBeginnerEnemyTarget(
     state.width,
     state.height,
     snakes,
     state.walls,
-    [point].filter(Boolean),
+    [point, playerFood, enemyFood].filter(Boolean),
     rng,
     { minXExclusive: 10, minYExclusive: 10 }
   );
 
   return {
-    food: createFoodState(point, null, null),
+    food: createFoodState(point, playerFood, enemyFood),
     enemyTarget
   };
 }
@@ -928,11 +969,13 @@ export function advanceGame(state, rng = Math.random) {
 
   const beginnerIntroActive = state.beginnerTutorial?.phase === "to_first_food";
   const beginnerEnemyFoodObjectiveActive = state.beginnerTutorial?.phase === "to_enemy_food";
-  const tutorialPlayerSafetyActive = Boolean(state.beginnerTutorial && state.beginnerTutorial.phase !== "complete");
-  const tutorialEnemySafetyActive = false;
-  let playerDirection = isOppositeDirection(state.player.direction, state.player.nextDirection)
+  const tutorialSafetyActive = Boolean(state.beginnerTutorial && state.beginnerTutorial.phase !== "complete");
+  const tutorialPlayerSafetyActive = tutorialSafetyActive;
+  const tutorialEnemySafetyActive = tutorialSafetyActive;
+  const requestedPlayerDirection = state.player.bufferedDirection ?? state.player.nextDirection;
+  let playerDirection = isOppositeDirection(state.player.direction, requestedPlayerDirection)
     ? state.player.direction
-    : state.player.nextDirection;
+    : requestedPlayerDirection;
   const enemyHead = state.enemy.snake[0];
   const enemyPlannedDirection = state.enemyControl === "human"
     ? state.enemy.nextDirection
@@ -1019,7 +1062,7 @@ export function advanceGame(state, rng = Math.random) {
   const shouldAutoRecoverTurn = playerCanMove
     && !tutorialPlayerSafetyActive
     && state.player.damageStreak > 0
-    && state.player.nextDirection === state.player.direction
+    && requestedPlayerDirection === state.player.direction
     && playerWouldTakeSnakeCollisionDamage;
   if (shouldAutoRecoverTurn) {
     for (const direction of Object.keys(DIRECTIONS)) {
@@ -1175,6 +1218,12 @@ export function advanceGame(state, rng = Math.random) {
       ? 0
       : state.enemy.damageStreak;
 
+  const playerBufferedDirection = playerTookDamage
+    ? null
+    : (playerCanMove ? null : (state.player.bufferedDirection ?? null));
+  const nextPlayerDirection = playerCanMove ? playerDirection : state.player.direction;
+  const nextPlayerNextDirection = playerCanMove ? playerDirection : state.player.nextDirection;
+
   const nextState = {
     ...state,
     walls: state.walls,
@@ -1182,8 +1231,9 @@ export function advanceGame(state, rng = Math.random) {
     tickCount: state.tickCount + 1,
     player: {
       snake: resolvedPlayerSnake,
-      direction: playerDirection,
-      nextDirection: playerDirection,
+      direction: nextPlayerDirection,
+      nextDirection: nextPlayerNextDirection,
+      bufferedDirection: playerBufferedDirection,
       score: playerScore,
       stunTicks: playerStunTicks,
       droppedBelowLength: playerDroppedBelowLength,
@@ -1398,6 +1448,7 @@ export function advanceGame(state, rng = Math.random) {
       snake: buildInitialSnake(safeResetHead, "RIGHT", resetLength, state.width, state.height).map(cloneCell),
       direction: "RIGHT",
       nextDirection: "RIGHT",
+      bufferedDirection: null,
       stunTicks: 0,
       damageStreak: 0
     };

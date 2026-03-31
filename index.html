@@ -39,11 +39,6 @@
           </section>
         </aside>
 
-        <div id="beginner-dialog" class="beginner-dialog" role="status" aria-live="polite" hidden>
-          <h2 id="beginner-dialog-title">Beginner Mode</h2>
-          <p id="beginner-dialog-text">Scripted tutorial sequence in progress.</p>
-        </div>
-
         <div id="points-bar" class="points-bar" aria-label="Snake points bar">
           <div class="points-row">
             <span class="points-label">You</span>
@@ -83,6 +78,11 @@
             </button>
           </div>
           <div id="board" class="board" aria-label="Battle Snake board" role="grid"></div>
+          <div id="tutorial-callouts" class="tutorial-callouts" aria-hidden="true" hidden></div>
+          <div id="beginner-dialog" class="beginner-dialog beginner-dialog--overlay" role="status" aria-live="polite" hidden>
+            <h2 id="beginner-dialog-title">Beginner Mode</h2>
+            <p id="beginner-dialog-text">Scripted tutorial sequence in progress.</p>
+          </div>
 
           <section id="controls-panel" class="settings-panel settings-panel--overlay" hidden>
             <h2>Controls</h2>
