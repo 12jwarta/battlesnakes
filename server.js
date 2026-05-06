@@ -144,8 +144,12 @@ function sanitizeSettings(input = {}) {
     return Math.max(min, Math.min(max, parsed));
   };
 
+  const requestedDifficulty = typeof input.difficultyLabel === "string" ? input.difficultyLabel : "hard";
+  // Online matches should never enter tutorial mode.
+  const normalizedDifficulty = requestedDifficulty === "beginner" ? "easy" : requestedDifficulty;
+
   return {
-    difficultyLabel: typeof input.difficultyLabel === "string" ? input.difficultyLabel : "hard",
+    difficultyLabel: normalizedDifficulty,
     enemyErrorEnabled: Boolean(input.enemyErrorEnabled),
     enemyErrorRate: clampNumber(input.enemyErrorRate, 0, 0.5, 0),
     enemyEarlyErrorBias: clampNumber(input.enemyEarlyErrorBias, 0, 1, 0.8),
