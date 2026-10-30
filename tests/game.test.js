@@ -1558,4 +1558,32 @@ test("snake auto-turns to a safe direction after stun recovery when no new input
   assert.equal(state.player.damageStreak, 0);
 });
 
+test("quick tutorial teaches normal food spawning and resumes the same open match", () => {
+  let state = createGameState({ difficulty: "beginner", quickTutorial: true, startingEnemyPoints: 1, rng: () => 0 });
+  assert.equal(state.beginnerTutorial.quick, true);
+  assert.equal(state.walls.length, 0);
+  state = { ...state, status: "running", beginnerTutorial: { ...state.beginnerTutorial, phase: "to_first_food" },
+    player: { ...state.player, snake: [{ x: 3, y: 5 }, { x: 2, y: 5 }, { x: 1, y: 5 }], direction: "RIGHT", nextDirection: "RIGHT", score: 1 },
+    enemy: { ...state.enemy, stunTicks: 99 },
+    food: { point: { x: 4, y: 5 }, player: null, enemy: null } };
+  state = advanceGame(state, () => 0.5);
+  assert.equal(state.status, "running");
+  state = advanceGame(state, () => 0.5);
+  assert.equal(state.status, "paused");
+  assert.equal(state.beginnerTutorial.phase, "after_first_food");
+  assert.ok(state.food.point.x > 8);
+  assert.equal(state.enemy.score, 1);
+  assert.equal(state.walls.length, 0);
+  const foods = state.food;
+  state = advanceTutorialPrompt(state, () => 0.5);
+  assert.equal(state.status, "paused");
+  assert.equal(state.beginnerTutorial.phase, "after_enemy_food");
+  state = advanceTutorialPrompt(state, () => 0.5);
+  assert.equal(state.status, "running");
+  assert.equal(state.beginnerTutorial.phase, "complete");
+  assert.equal(state.player.score, 2);
+  assert.deepEqual(state.food, foods);
+  assert.ok(state.food.point && state.food.player && state.food.enemy);
+});
+
 console.log(`\n${passed} tests passed.`);

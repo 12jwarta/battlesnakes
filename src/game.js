@@ -313,6 +313,11 @@ export function placeFood(width, height, snakes, rng = Math.random, options = {}
 }
 
 export function createGameState(options = {}) {
+  if (options.quickTutorial && (options.difficultyLabel ?? options.difficulty ?? DEFAULT_DIFFICULTY) === "beginner") {
+    const match = createGameState({ ...options, quickTutorial: false, difficulty: "easy", difficultyLabel: "easy" });
+    return { ...match, difficulty: "beginner", status: "paused",
+      beginnerTutorial: { quick: true, phase: "await_start", enemyTarget: null } };
+  }
   const width = options.width ?? BOARD_SIZE;
   const height = options.height ?? BOARD_SIZE;
   const difficultyLabel = options.difficultyLabel ?? options.difficulty ?? DEFAULT_DIFFICULTY;
@@ -412,7 +417,7 @@ export function createGameState(options = {}) {
     foodSpawnTimer: 0,
     foodRespawnSide: null,
     beginnerTutorial: presetDifficulty === "beginner"
-      ? { phase: "await_start", enemyTarget: beginnerEnemyTarget }
+      ? { phase: "await_start", enemyTarget: beginnerEnemyTarget, quick: Boolean(options.quickTutorial) }
       : null
   };
 }
@@ -449,6 +454,10 @@ export function queueDirection(state, direction) {
     : state.beginnerTutorial;
 
   if (state.beginnerTutorial?.phase === "await_start") {
+    if (state.beginnerTutorial.quick) {
+      return queueDirection({ ...state, status: "running",
+        beginnerTutorial: { ...state.beginnerTutorial, phase: "to_first_food" } }, direction);
+    }
     return {
       ...state,
       status: "running",
@@ -495,6 +504,16 @@ export function queueDirection(state, direction) {
 }
 
 export function advanceTutorialPrompt(state, rng = Math.random) {
+  if (state.beginnerTutorial?.quick && state.beginnerTutorial.phase === "after_first_food") {
+    return { ...state, beginnerTutorial: { ...state.beginnerTutorial, phase: "after_enemy_food" } };
+  }
+  if (state.beginnerTutorial?.quick && state.beginnerTutorial.phase === "after_enemy_food") {
+    return {
+      ...state,
+      status: "running",
+      beginnerTutorial: { ...state.beginnerTutorial, phase: "complete", enemyTarget: null, avoidPointCell: null }
+    };
+  }
   const phase = state.beginnerTutorial?.phase;
   if (!phase) {
     return state;
@@ -843,7 +862,7 @@ function resolveWinner(state) {
     return "player_won";
   }
 
-  const disableDamageStreakLoss = state.beginnerTutorial && state.beginnerTutorial.phase !== "complete";
+  const disableDamageStreakLoss = state.beginnerTutorial && !state.beginnerTutorial.quick && state.beginnerTutorial.phase !== "complete";
   if (!disableDamageStreakLoss) {
     if (state.player.damageStreak >= 3 && state.enemy.damageStreak >= 3) {
       return "draw";
@@ -967,9 +986,9 @@ export function advanceGame(state, rng = Math.random) {
     return state;
   }
 
-  const beginnerIntroActive = state.beginnerTutorial?.phase === "to_first_food";
+  const beginnerIntroActive = !state.beginnerTutorial?.quick && state.beginnerTutorial?.phase === "to_first_food";
   const beginnerEnemyFoodObjectiveActive = state.beginnerTutorial?.phase === "to_enemy_food";
-  const tutorialSafetyActive = Boolean(state.beginnerTutorial && state.beginnerTutorial.phase !== "complete");
+  const tutorialSafetyActive = Boolean(state.beginnerTutorial && !state.beginnerTutorial.quick && state.beginnerTutorial.phase !== "complete");
   const tutorialPlayerSafetyActive = tutorialSafetyActive;
   const tutorialEnemySafetyActive = tutorialSafetyActive;
   const requestedPlayerDirection = state.player.bufferedDirection ?? state.player.nextDirection;
@@ -1288,6 +1307,15 @@ export function advanceGame(state, rng = Math.random) {
     && status === "running"
     ? "draw"
     : status;
+  if (state.beginnerTutorial?.quick) {
+    const teachingSpawn = state.beginnerTutorial.phase === "to_first_food" && shouldRespawnFoodSet;
+    return { ...nextState, food: nextFood, foodSpawnTimer: finalSpawnTimer,
+      foodRespawnSide: finalRespawnSide,
+      status: teachingSpawn && finalStatus === "running" ? "paused" : finalStatus,
+      beginnerTutorial: teachingSpawn
+        ? { ...state.beginnerTutorial, phase: "after_first_food" }
+        : state.beginnerTutorial };
+  }
   const completedBeginnerIntro = state.beginnerTutorial?.phase === "to_first_food"
     && !playerTookDamage
     && playerWillEatPoint;
@@ -1315,7 +1343,11 @@ export function advanceGame(state, rng = Math.random) {
   if (state.beginnerTutorial) {
     if (completedBeginnerIntro) {
       const fixedPointFood = beginnerToBoardCell(state.width, state.height, 14, 4);
-      const fixedEnemyFood = beginnerToBoardCell(state.width, state.height, 4, 4);
+      const fixedEnemyFood = state.beginnerTutorial.quick
+        ? placeTutorialCell(state.width, state.height, [resolvedPlayerSnake, resolvedEnemySnake], state.walls,
+          [fixedPointFood], rng, ({ x, y }) => x < Math.floor(state.width / 2) - 1
+            && Math.abs(x - resolvedPlayerSnake[0].x) + Math.abs(y - resolvedPlayerSnake[0].y) <= 3)
+        : beginnerToBoardCell(state.width, state.height, 4, 4);
       const nextEnemyTarget = placeBeginnerEnemyTarget(
         state.width,
         state.height,
@@ -1338,6 +1370,7 @@ export function advanceGame(state, rng = Math.random) {
         avoidPointCell: fixedPointFood
       };
     } else if (completedBeginnerEnemyFoodObjective) {
+      if (state.beginnerTutorial.quick) nextState.walls = [];
       nextBeginnerTutorial = {
         ...state.beginnerTutorial,
         phase: "after_enemy_food"

@@ -1,12 +1,12 @@
 :root {
   color-scheme: light;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background: #f4f1ea;
-  color: #1e1e1e;
+  background: #f5f6f3;
+  color: #23302c;
   --board-size: min(72vw, 560px);
   --cell-gap: 2px;
-  --panel-bg: #fffdf8;
-  --panel-border: #d8d2c7;
+  --panel-bg: #ffffff;
+  --panel-border: #dce2dd;
   --snake: #2f6b3f;
   --snake-head: #194725;
   --enemy: #35648f;
@@ -14,11 +14,11 @@
   --food: #c24b3b;
   --player-food: #5d8f6b;
   --enemy-food: #5d84a6;
-  --board-bg: #ece7dc;
-  --left-zone-bg: #f4a0ff;
-  --right-zone-bg: #e2b678;
-  --center-row-line: rgba(95, 91, 85, 0.45);
-  --text-muted: #5f5b55;
+  --board-bg: #f6f7f4;
+  --left-zone-bg: #eff4ee;
+  --right-zone-bg: #edf3f7;
+  --center-row-line: rgba(70, 90, 80, 0.14);
+  --text-muted: #66736c;
   --player-lit: #88be97;
   --enemy-lit: #88aacc;
 }
@@ -44,7 +44,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--background, #f4f1ea);
+  background: radial-gradient(ellipse at 50% 0%, #e9efea, transparent 65%), #f5f6f3;
 }
 
 .app {
@@ -54,13 +54,22 @@ body {
   padding: 28px;
 }
 
+.welcome { padding: 28px 12px 48px; text-align: center; }
+.welcome h2 { font-size: clamp(1.5rem, 4vw, 2.25rem); letter-spacing: -0.045em; font-weight: 600; }
+.welcome p { margin: 16px auto 24px; max-width: 420px; }
+.welcome button { display: block; width: min(100%, 320px); margin: 10px auto; min-height: 52px; }
+.welcome[hidden] { display: none; }
+.panel:has(.welcome:not([hidden])) > :is(.toolbar, .points-bar, .game-area, .controls, .hint, .mobile-actions) { display: none !important; }
+.tutorial-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tutorial-actions button { min-height: 44px; }
+
 .panel {
   width: min(100%, 920px);
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
-  border-radius: 22px;
+  border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 16px 40px rgba(42, 35, 24, 0.08);
+  box-shadow: 0 12px 48px rgba(35, 48, 44, 0.04);
 }
 
 .toolbar {
@@ -76,6 +85,10 @@ body {
   text-align: center;
   margin-bottom: 12px;
 }
+
+h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); letter-spacing: -0.06em; font-weight: 750; }
+.subtitle { font-size: 0.85rem; margin-top: 6px; }
+.panel:has(.welcome:not([hidden])) .panel__header { padding-top: 28px; }
 
 h1,
 p {
@@ -99,11 +112,13 @@ p {
   justify-content: center;
   width: 100%;
   min-height: 42px;
-  border: 1px solid var(--panel-border);
-  border-radius: 999px;
-  background: #f6f2e8;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   padding: 0 14px;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
+  text-align: center;
+  line-height: 1.5;
 }
 
 .join-inline {
@@ -131,10 +146,10 @@ p {
 }
 
 button {
-  border: 1px solid #a69f90;
-  background: #f9f7f1;
+  border: 1px solid var(--panel-border);
+  background: #f8faf8;
   color: inherit;
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 10px 14px;
   font: inherit;
   cursor: pointer;
@@ -142,10 +157,16 @@ button {
 }
 
 button:hover {
-  background: #f1ecdf;
-  border-color: #a69f90;
-  transform: translateY(-1px);
+  background: #edf2ee;
+  border-color: #9eafa3;
 }
+
+button:focus-visible { outline: 3px solid #35648f; outline-offset: 3px; }
+#welcome-play, #tutorial-continue { background: #244d36; color: white; border-color: #244d36; font-weight: 600; }
+#welcome-play:hover, #tutorial-continue:hover { background: #193a27; }
+#welcome-online { background: #edf3f7; border-color: #9fb4c5; color: #284e6e; font-weight: 600; }
+#welcome-online:hover { background: #dfeaf2; border-color: #35648f; }
+#tutorial-skip { background: transparent; border-color: transparent; color: var(--text-muted); }
 
 .menu-backdrop {
   display: none;
@@ -442,10 +463,10 @@ button:hover {
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  border: 1px solid var(--panel-border);
+  border: 0;
   border-radius: 14px;
-  background: #fffaf1;
-  box-shadow: 0 8px 20px rgba(34, 25, 11, 0.14);
+  background: transparent;
+  box-shadow: none;
   z-index: 32;
 }
 
@@ -479,10 +500,10 @@ button:hover {
   grid-template-rows: repeat(16, 1fr);
   gap: var(--cell-gap);
   padding: var(--cell-gap);
-  background: var(--panel-border);
-  border: 1px solid rgba(42, 35, 24, 0.2);
-  border-radius: 18px;
-  box-shadow: 0 14px 24px rgba(42, 35, 24, 0.14);
+  background: #e5eae5;
+  border: 1px solid var(--panel-border);
+  border-radius: 0 0 8px 8px;
+  box-shadow: none;
   margin: 0;
   touch-action: none;
   overflow: hidden;
@@ -506,11 +527,13 @@ button:hover {
 }
 
 .points-bar {
-  margin: 0 0 12px;
-  padding: 10px 12px;
+  width: var(--board-size);
+  margin: 0 auto;
+  padding: 12px 16px;
   border: 1px solid var(--panel-border);
-  border-radius: 14px;
-  background: #f6f2e8;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: #ffffff;
   display: grid;
   gap: 8px;
 }
@@ -521,24 +544,27 @@ button:hover {
 
 .beginner-dialog {
   margin: 0 0 12px;
-  padding: 10px 12px;
+  padding: 16px;
   border: 1px solid var(--panel-border);
   border-radius: 10px;
-  background: #f6f2e8;
+  background: #ffffff;
   display: grid;
   gap: 6px;
 }
 
 .beginner-dialog h2 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
 }
 
 .beginner-dialog p {
   margin: 0;
   color: var(--text-muted);
   font-size: 0.88rem;
-  line-height: 1.35;
+  line-height: 1.5;
 }
 
 .beginner-dialog--overlay {
@@ -549,8 +575,8 @@ button:hover {
   width: min(calc(100% - 18px), 620px);
   margin: 0;
   z-index: 18;
-  background: rgba(246, 242, 232, 0.97);
-  box-shadow: 0 8px 18px rgba(42, 35, 24, 0.18);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 4px 20px rgba(35, 48, 44, 0.12);
 }
 
 .beginner-dialog--overlay.beginner-dialog--phase-split-top {
@@ -893,9 +919,9 @@ button:hover {
     margin: 16px auto 0;
     width: min(100%, 320px);
     padding: 8px;
-    border: 1px solid var(--panel-border);
+    border: 0;
     border-radius: 12px;
-    background: #f6f2e8;
+    background: transparent;
   }
 
   .hint {
@@ -926,4 +952,21 @@ button:hover {
     left: 50%;
     transform: translateX(-50%);
   }
+}
+
+.hamburger-menu, .settings-panel, .rules-panel { background: #fcfdfb; }
+.settings-grid input, .settings-grid select, .join-inline input { background: #fff; border-color: var(--panel-border); }
+.rules-food-table th { background: #edf2ee; }
+
+@media (max-width: 560px) {
+  :root { --board-size: min(72vw, 560px); }
+  .app { padding: 10px; }
+  .panel { padding: 14px 8px; }
+  .welcome { padding: 16px 8px 24px; }
+  .board-tools { left: -44px; padding: 0; }
+  .board-tool-button { width: 36px; height: 40px; }
+  .points-bar { padding: 10px; }
+  .beginner-dialog--overlay { padding: 12px; }
+  .tutorial-actions { gap: 4px; }
+  .tutorial-actions button { padding: 8px 10px; }
 }

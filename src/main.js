@@ -124,6 +124,7 @@ function isOnlineActive() {
 
 function buildGameOptions() {
   return {
+    quickTutorial: true,
     difficultyLabel: selectedDifficulty,
     enemyErrorEnabled: settings.enemyErrorEnabled,
     enemyErrorRate: settings.enemyErrorRate,
@@ -517,6 +518,12 @@ async function disconnectOnlineSession(message = "Offline (Local AI match)") {
 }
 
 function statusMessage(currentState) {
+  if (currentState.beginnerTutorial?.quick && currentState.status === "running") {
+    const phase = currentState.beginnerTutorial.phase;
+    if (phase === "to_first_food") return "Collect the red point block to gain a point and grow. First to 15 wins.";
+    if (phase === "to_enemy_food") return "Collect the enemy-colored block. Each point sends the next point block to the other side.";
+    if (phase === "complete") return "Race to 15! Each point sends the next block to your opponent's side. Snake blocks stay until the next point is collected.";
+  }
   const difficultyLabel = currentState.difficulty.charAt(0).toUpperCase() + currentState.difficulty.slice(1);
   const resultDetails = getResultDetails(currentState);
 
@@ -792,6 +799,28 @@ function renderTutorialCallouts(currentState, visible) {
 }
 
 function updateBeginnerDialog(currentState) {
+  if (currentState.beginnerTutorial?.quick) {
+    const phase = currentState.beginnerTutorial.phase;
+    const active = phase !== "complete";
+    const paused = currentState.status === "paused";
+    const lesson = ["await_start", "to_first_food"].includes(phase) ? 1 : phase === "after_enemy_food" ? 3 : 2;
+    const messages = {
+      await_start: "You're the snake on the left. Collect red point blocks to gain one point and grow. First to 15 wins. This is a normal match; we'll pause briefly to explain the blocks as they appear.",
+      to_first_food: "Grab the red point block to gain a point and grow.",
+      after_first_food: "The first point is collected! Whenever either snake collects a point block anywhere, the next one spawns on their opponent's side. Both colored blocks regenerate too. Look for the new red block across the board.",
+      to_enemy_food: "Collect the enemy-colored block to take a point from your opponent.",
+      after_enemy_food: "Collect an enemy-colored block to deny them one point; you gain nothing. Your own color restores a point when your points are below your body length. Colored blocks don't grow snakes or regenerate blocks, so collect them before the next point is collected. Three consecutive crashes end your game. You're ready!"
+    };
+    beginnerDialogTitleElement.textContent = `Lesson ${lesson} of 3`;
+    beginnerDialogTextElement.textContent = `${currentState.beginnerTutorial.playerResetNotice || ""} ${messages[phase] || ""}`.trim();
+    beginnerDialogElement.hidden = !active || !paused;
+    beginnerDialogElement.classList.add("beginner-dialog--phase-split-top");
+    document.querySelector("#tutorial-continue").textContent = phase === "await_start" ? "Let's go" : phase === "after_enemy_food" ? "Play the round" : "Continue";
+    playerMiniScoreElement.classList.remove("mini-score--tutorial-callout");
+    renderTutorialCallouts(currentState, active && paused && phase === "await_start");
+    pointsBarElement.hidden = false;
+    return;
+  }
   if (!beginnerDialogElement || !pointsBarElement) {
     return;
   }
@@ -1094,6 +1123,7 @@ function handleRelativeTurn(turn) {
 }
 
 function handleDirection(direction) {
+  if (!document.querySelector("#welcome").hidden) return;
   if (activeOverlay !== null) {
     return;
   }
@@ -1205,6 +1235,18 @@ function runPauseToggle() {
     return;
   }
 
+  if (state.beginnerTutorial?.quick && state.status === "paused") {
+    const phase = state.beginnerTutorial.phase;
+    if (phase === "await_start") state = queueDirection(state, state.player.direction);
+    else if (["after_first_food", "after_enemy_food"].includes(phase)) {
+      state = advanceTutorialPrompt(state);
+      if (state.beginnerTutorial.phase === "complete") {
+        try { localStorage.setItem("battlesnakes-tutorial-complete", "true"); } catch {}
+      }
+    } else state = togglePause(state);
+    render();
+    return;
+  }
   if (state.beginnerTutorial?.phase === "await_start") {
     return;
   }
@@ -1265,6 +1307,7 @@ function runPauseToggle() {
 }
 
 document.addEventListener("keydown", (event) => {
+  if (!document.querySelector("#welcome").hidden) return;
   if (menuOpen && event.key === "Escape") {
     setMenuOpen(false);
     return;
@@ -1506,7 +1549,27 @@ turnRightButton.addEventListener("click", () => {
   handleRelativeTurn("right");
 });
 
-applyPreset("beginner");
+function enterFromWelcome(difficulty) {
+  document.querySelector("#welcome").hidden = true;
+  applyPreset(difficulty);
+  resetGame();
+  scheduleTick();
+}
+
+document.querySelector("#welcome-play").addEventListener("click", () => enterFromWelcome("easy"));
+document.querySelector("#welcome-learn").addEventListener("click", () => enterFromWelcome("beginner"));
+document.querySelector("#welcome-online").addEventListener("click", () => { enterFromWelcome("easy"); setMenuOpen(true); });
+document.querySelector("#tutorial-continue").addEventListener("click", runPauseToggle);
+document.querySelector("#tutorial-skip").addEventListener("click", () => enterFromWelcome("easy"));
+try {
+  if (localStorage.getItem("battlesnakes-tutorial-complete") === "true") {
+    document.querySelector("#welcome-learn").textContent = "Replay Tutorial";
+    document.querySelector("#welcome-play").textContent = "Play Again";
+  }
+} catch {}
+
+applyPreset("easy");
+state = restartGame(buildGameOptions());
 applyColorblindMode(false);
 applyControlScheme("dpad");
 menuToggleButton.textContent = "\u2630";
